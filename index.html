@@ -592,7 +592,7 @@
     let callsChannel = null;
     let candidatesChannel = null;
     let typingChannel = null;
-    let currentMessagesUnsub = null;
+    let usersChannel = null;
 
     const authPage = document.getElementById('authPage');
     const messengerInterface = document.getElementById('messengerInterface');
@@ -746,7 +746,6 @@
 
     function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 
-    // --- Heartbeat: статус "в сети" ---
     function startHeartbeat() {
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       const beat = () => {
@@ -759,7 +758,6 @@
       if (myId) supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
     });
 
-    // --- Профиль ---
     function showUserProfile(uid, name) {
       profileTargetId = uid;
       profileTargetName = name;
@@ -828,7 +826,6 @@
       if (e.target === historyModal) historyModal.classList.remove('active');
     });
 
-    // --- ИСТОРИЯ ЗВОНКОВ ---
     historyBtn.addEventListener('click', async () => {
       if (!activePrivateChatWith) return notify('История только в личных чатах');
       const chatId = getChatId(myId, activePrivateChatWith);
@@ -949,6 +946,7 @@
 
     function wireConnectionState() {
       pc.onconnectionstatechange = () => {
+        console.log('🔗 conn:', pc.connectionState);
         if (pc.connectionState === 'connected') {
           activeStatus.textContent = 'Соединено';
           if (!callTimerInterval) startCallTimer();
@@ -961,11 +959,16 @@
         }
       };
       pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'failed') {
-          notify('⚠️ ICE failed, пробую перезапустить...');
+        console.log('🧊 ice:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'checking') {
+          activeStatus.textContent = 'Проверка ICE...';
+        } else if (pc.iceConnectionState === 'failed') {
+          activeStatus.textContent = 'ICE failed';
+          notify('⚠️ ICE failed, пробую restartIce...');
           try { pc.restartIce(); } catch(e){}
         }
       };
+      pc.onsignalingstatechange = () => console.log('📡 signaling:', pc.signalingState);
     }
 
     async function writeCallHistory(direction, status, duration, otherId) {
@@ -1165,7 +1168,6 @@
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(incomingCallData.offer));
-        // подписка ДО flush
         subscribeCandidates(callId, callerId);
         await flushRemoteCandidates();
         const answer = await pc.createAnswer();
@@ -1235,13 +1237,11 @@
       toggleRegisterPassword.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
     });
 
-    // --- СЛУШАТЕЛИ ---
     function subscribeToUserData() {
       if (messagesChannel) supabase.removeChannel(messagesChannel);
       messagesChannel = supabase.channel('global_messages')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
           const msg = payload.new;
-          // если это чужое сообщение в личке
           const otherId = msg.chat_id.includes(myId) ? otherIdFromChatKey(msg.chat_id) : null;
           if (otherId && msg.sender_id !== myId) {
             const chatKey = msg.chat_id;
@@ -1266,7 +1266,6 @@
             }
             buildContactsList();
           }
-          // если открыт этот чат — добавляем сообщение на лету
           const isCurrentGeneral = currentRoom === 'general' && msg.chat_id === 'general';
           const isCurrentPrivate = currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith);
           if (isCurrentGeneral || isCurrentPrivate) {
@@ -1280,7 +1279,6 @@
           if (isCurrent) {
             const el = document.getElementById(`msg-${msg.id}`);
             if (el) {
-              // обновим текст
               const textEl = el.querySelector('.msg-text');
               if (textEl) textEl.textContent = msg.text || '';
               const editedEl = el.querySelector('.msg-edited');
@@ -1302,20 +1300,21 @@
         })
         .subscribe();
 
+      // слушаем users — обновляем статус в списке
+      if (usersChannel) supabase.removeChannel(usersChannel);
+      usersChannel = supabase.channel('global_users')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+          loadAllUsers();
+        }).subscribe();
+
       supabase.channel('global_contacts')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts', filter: `owner_id=eq.${myId}` }, () => {
           loadContacts();
-        }).subscribe();
-
-      supabase.channel('global_users')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-          loadAllUsers();
         }).subscribe();
     }
 
     function appendMessageLive(msg, isPrivate) {
       if (hiddenMessages.includes(msg.id)) return;
-      // если такой уже есть — не дублируем
       if (document.getElementById(`msg-${msg.id}`)) return;
 
       const dayKey = (() => {
@@ -1344,6 +1343,14 @@
       allUsers = {};
       if (data) data.forEach(u => allUsers[u.id] = u);
       buildContactsList();
+      // обновим статус в шапке открытого чата
+      if (activePrivateChatWith) {
+        const u = allUsers[activePrivateChatWith];
+        const now = Date.now();
+        const lastSeenMs = u && u.last_seen ? new Date(u.last_seen).getTime() : 0;
+        const online = !!u && u.online && (now - lastSeenMs < 60000);
+        chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
+      }
     }
 
     function otherIdFromChatKey(key) {
@@ -1511,7 +1518,6 @@
       for (const uid in myContacts) {
         if (!myContacts[uid] || uid === myId) continue;
         const u = allUsers[uid] || { name: 'ID ' + uid };
-        // онлайн если online === true и last_seen свежий (меньше 60 секунд)
         const lastSeenMs = u.last_seen ? new Date(u.last_seen).getTime() : 0;
         const isOnline = !!u.online && (now - lastSeenMs < 60000);
         const storageKey = getChatId(myId, uid);
@@ -1679,8 +1685,6 @@
       pinnedBanner.classList.remove('active');
       messagesContainer.innerHTML = '';
       stopRecording(true);
-      // отписка от сообщений текущего чата
-      if (currentMessagesUnsub) { try { currentMessagesUnsub(); } catch(e){} currentMessagesUnsub = null; }
     });
 
     let lastRenderedDate = null;
@@ -1982,7 +1986,6 @@
       fileInput.click();
     });
 
-    // --- ГОЛОСОВЫЕ ---
     micBtn.addEventListener('click', async () => {
       if (!currentRoom) return notify('Выберите чат');
       if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -2193,7 +2196,6 @@
       chatLastTimes[chatId] = Date.now();
       localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
       playSound('send');
-      // убираем свой typing
       await supabase.from('typing').delete().eq('user_id', myId);
     }
 
@@ -2211,15 +2213,12 @@
       typingTimeout = setTimeout(() => supabase.from('typing').delete().eq('user_id', myId), 2000);
     });
 
-    // typing-подписка (игнорируем свои события)
     if (typingChannel) supabase.removeChannel(typingChannel);
     typingChannel = supabase.channel('global_typing')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'typing' }, (payload) => {
-        // игнорируем свои собственные изменения
         if (payload.new && payload.new.user_id === myId) return;
         if (!currentRoom) { typingStatus.textContent = ''; return; }
         let myRoomKey = currentRoom.startsWith('private_') ? getChatId(myId, activePrivateChatWith) : currentRoom;
-        // обновим список печатающих
         supabase.from('typing').select('name, updated_at').eq('room', myRoomKey).neq('user_id', myId).then(({ data }) => {
           const now = Date.now();
           const names = (data || [])
