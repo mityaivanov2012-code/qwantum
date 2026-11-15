@@ -563,7 +563,7 @@
     let chatLastTimes = JSON.parse(localStorage.getItem('qwantum_chatTimes') || '{}');
     let isWindowFocused = document.hasFocus();
     let currentPinned = null;
-    let heartbeatInterval = null;
+    let heartbeatTimeout = null;
 
     // звонки
     let pc = null;
@@ -578,6 +578,7 @@
     let callSubscriptions = [];
     let currentCallRecordedId = null;
     let remoteCandidateQueue = [];
+    let iceRestartTimeout = null;
 
     // голосовые
     let mediaRecorder = null;
@@ -746,14 +747,20 @@
 
     function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 
+    // --- HEARTBEAT (рекурсивный setTimeout) ---
     function startHeartbeat() {
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
-      const beat = () => {
-        supabase.from('users').update({ online: true, last_seen: new Date().toISOString() }).eq('id', myId).then();
+      if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
+      const beat = async () => {
+        await supabase.from('users').update({ online: true, last_seen: new Date().toISOString() }).eq('id', myId);
+        heartbeatTimeout = setTimeout(beat, 15000);
       };
       beat();
-      heartbeatInterval = setInterval(beat, 25000);
     }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && myId) {
+        supabase.from('users').update({ online: true, last_seen: new Date().toISOString() }).eq('id', myId).then();
+      }
+    });
     window.addEventListener('beforeunload', () => {
       if (myId) supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
     });
@@ -889,6 +896,11 @@
           urls: 'turn:openrelay.metered.ca:443',
           username: 'openrelayproject',
           credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:relay1.expressturn.com:3478',
+          username: 'efNRV3VQ2J5Z8L6A2U',
+          credential: '2V0vQ5B6Z7X8'
         }
       ]
     };
@@ -951,6 +963,7 @@
           activeStatus.textContent = 'Соединено';
           if (!callTimerInterval) startCallTimer();
           remoteAudio.play().catch(() => {});
+          if (iceRestartTimeout) { clearTimeout(iceRestartTimeout); iceRestartTimeout = null; }
         } else if (pc.connectionState === 'failed') {
           activeStatus.textContent = 'Сбой соединения';
           notify('⚠️ Не удалось установить аудиосвязь');
@@ -967,6 +980,9 @@
           notify('⚠️ ICE failed, пробую restartIce...');
           try { pc.restartIce(); } catch(e){}
         }
+      };
+      pc.onicecandidateerror = (e) => {
+        console.warn('❌ ICE candidate error:', e.errorCode, e.url, e.errorText);
       };
       pc.onsignalingstatechange = () => console.log('📡 signaling:', pc.signalingState);
     }
@@ -996,6 +1012,7 @@
       localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
       pc.onicecandidate = (e) => {
         if (e.candidate) {
+          console.log('📤 send cand:', e.candidate.type || 'host');
           supabase.from('call_candidates').insert({ chat_id: callId, from_user: myId, candidate: e.candidate.toJSON() }).then();
         }
       };
@@ -1012,6 +1029,14 @@
 
       showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...');
       listenForAnswer(callId);
+
+      // если через 5 секунд после accepted ещё не connected — рестарт ICE
+      iceRestartTimeout = setTimeout(() => {
+        if (pc && pc.connectionState !== 'connected') {
+          console.warn('🔄 ICE restart timeout');
+          try { pc.restartIce(); } catch(e){}
+        }
+      }, 5000);
     });
 
     function listenForAnswer(callId) {
@@ -1065,6 +1090,7 @@
     }
 
     function cleanupCall() {
+      if (iceRestartTimeout) { clearTimeout(iceRestartTimeout); iceRestartTimeout = null; }
       if (pc) { pc.close(); pc = null; }
       if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
       if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
@@ -1162,7 +1188,10 @@
       wireConnectionState();
       localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
       pc.onicecandidate = (e) => {
-        if (e.candidate) supabase.from('call_candidates').insert({ chat_id: callId, from_user: myId, candidate: e.candidate.toJSON() }).then();
+        if (e.candidate) {
+          console.log('📤 send cand (callee):', e.candidate.type || 'host');
+          supabase.from('call_candidates').insert({ chat_id: callId, from_user: myId, candidate: e.candidate.toJSON() }).then();
+        }
       };
       pc.ontrack = (e) => setupRemoteAudio(e.streams[0]);
 
@@ -1300,7 +1329,6 @@
         })
         .subscribe();
 
-      // слушаем users — обновляем статус в списке
       if (usersChannel) supabase.removeChannel(usersChannel);
       usersChannel = supabase.channel('global_users')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
@@ -1343,7 +1371,6 @@
       allUsers = {};
       if (data) data.forEach(u => allUsers[u.id] = u);
       buildContactsList();
-      // обновим статус в шапке открытого чата
       if (activePrivateChatWith) {
         const u = allUsers[activePrivateChatWith];
         const now = Date.now();
@@ -1499,7 +1526,7 @@
     logoutBtn.addEventListener('click', async () => {
       if (confirm('Выйти из аккаунта?')) {
         await supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
         localStorage.removeItem('qwantum_myId');
         localStorage.removeItem('qwantum_myName');
         localStorage.removeItem('qwantum_isLoggedIn');
@@ -1519,7 +1546,7 @@
         if (!myContacts[uid] || uid === myId) continue;
         const u = allUsers[uid] || { name: 'ID ' + uid };
         const lastSeenMs = u.last_seen ? new Date(u.last_seen).getTime() : 0;
-        const isOnline = !!u.online && (now - lastSeenMs < 60000);
+        const isOnline = !!u.online && (now - lastSeenMs < 120000); // 2 минуты для лояльности
         const storageKey = getChatId(myId, uid);
         items.push({
           id: `private_${uid}`, uid, name: u.name, online: isOnline,
@@ -1643,7 +1670,7 @@
       const otherUser = allUsers[otherId];
       const now = Date.now();
       const lastSeenMs = otherUser && otherUser.last_seen ? new Date(otherUser.last_seen).getTime() : 0;
-      const online = !!otherUser && otherUser.online && (now - lastSeenMs < 60000);
+      const online = !!otherUser && otherUser.online && (now - lastSeenMs < 120000);
       chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
       chatAvatar.textContent = otherName.charAt(0).toUpperCase();
       chatAvatar.style.background = getAvatarColor(otherName);
