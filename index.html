@@ -748,7 +748,7 @@
 
     function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 
-    // --- СТАТУС "В СЕТИ" ЧЕРЕЗ ОТСЛЕЖИВАНИЕ АКТИВНОСТИ ---
+    // --- СТАТУС "В СЕТИ" ---
     function sendPulse() {
       const now = Date.now();
       if (now - lastPulseTime < PULSE_COOLDOWN) return;
@@ -768,6 +768,7 @@
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) sendPulse();
       });
+      window.addEventListener('focus', sendPulse);
       sendPulse();
       window.addEventListener('beforeunload', () => {
         if (myId) {
@@ -895,12 +896,11 @@
       }
     });
 
-    // --- ЗВОНКИ (оставлены как есть) ---
+    // --- ЗВОНКИ (ВЕРНУЛ САМУЮ ПЕРВУЮ КОНФИГУРАЦИЮ) ---
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:global.stun.twilio.com:3478' },
         {
           urls: 'turn:openrelay.metered.ca:80',
           username: 'openrelayproject',
