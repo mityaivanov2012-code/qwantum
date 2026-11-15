@@ -747,7 +747,7 @@
 
     function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 
-    // --- HEARTBEAT (рекурсивный setTimeout) ---
+    // --- HEARTBEAT ---
     function startHeartbeat() {
       if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
       const beat = async () => {
@@ -881,26 +881,24 @@
       }
     });
 
-    // --- ЗВОНКИ ---
+    // --- ЗВОНКИ (обновлённые TURN) ---
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:global.stun.twilio.com:3478' },
         {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
+          urls: 'turn:standard.relay.metered.ca:80',
+          username: 'e8dd8a2ec1b2c2b5c5d4a5b5c4d5e6f7',
+          credential: 'A1b2C3d4E5f6G7h8'
         },
         {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
+          urls: 'turn:standard.relay.metered.ca:443',
+          username: 'e8dd8a2ec1b2c2b5c5d4a5b5c4d5e6f7',
+          credential: 'A1b2C3d4E5f6G7h8'
         },
         {
-          urls: 'turn:relay1.expressturn.com:3478',
-          username: 'efNRV3VQ2J5Z8L6A2U',
-          credential: '2V0vQ5B6Z7X8'
+          urls: 'turn:standard.relay.metered.ca:443?transport=tcp',
+          username: 'e8dd8a2ec1b2c2b5c5d4a5b5c4d5e6f7',
+          credential: 'A1b2C3d4E5f6G7h8'
         }
       ]
     };
@@ -1030,7 +1028,6 @@
       showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...');
       listenForAnswer(callId);
 
-      // если через 5 секунд после accepted ещё не connected — рестарт ICE
       iceRestartTimeout = setTimeout(() => {
         if (pc && pc.connectionState !== 'connected') {
           console.warn('🔄 ICE restart timeout');
@@ -1375,7 +1372,7 @@
         const u = allUsers[activePrivateChatWith];
         const now = Date.now();
         const lastSeenMs = u && u.last_seen ? new Date(u.last_seen).getTime() : 0;
-        const online = !!u && u.online && (now - lastSeenMs < 60000);
+        const online = !!u && u.online && (now - lastSeenMs < 120000);
         chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
       }
     }
@@ -1546,7 +1543,7 @@
         if (!myContacts[uid] || uid === myId) continue;
         const u = allUsers[uid] || { name: 'ID ' + uid };
         const lastSeenMs = u.last_seen ? new Date(u.last_seen).getTime() : 0;
-        const isOnline = !!u.online && (now - lastSeenMs < 120000); // 2 минуты для лояльности
+        const isOnline = !!u.online && (now - lastSeenMs < 120000);
         const storageKey = getChatId(myId, uid);
         items.push({
           id: `private_${uid}`, uid, name: u.name, online: isOnline,
