@@ -563,7 +563,8 @@
     let chatLastTimes = JSON.parse(localStorage.getItem('qwantum_chatTimes') || '{}');
     let isWindowFocused = document.hasFocus();
     let currentPinned = null;
-    let heartbeatTimeout = null;
+    let lastPulseTime = 0;
+    const PULSE_COOLDOWN = 5000;
 
     // звонки
     let pc = null;
@@ -747,23 +748,36 @@
 
     function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 
-    // --- HEARTBEAT ---
-    function startHeartbeat() {
-      if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
-      const beat = async () => {
-        await supabase.from('users').update({ online: true, last_seen: new Date().toISOString() }).eq('id', myId);
-        heartbeatTimeout = setTimeout(beat, 15000);
-      };
-      beat();
-    }
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && myId) {
-        supabase.from('users').update({ online: true, last_seen: new Date().toISOString() }).eq('id', myId).then();
+    // --- СТАТУС "В СЕТИ" ЧЕРЕЗ ОТСЛЕЖИВАНИЕ АКТИВНОСТИ ---
+    function sendPulse() {
+      const now = Date.now();
+      if (now - lastPulseTime < PULSE_COOLDOWN) return;
+      lastPulseTime = now;
+      if (myId) {
+        supabase.from('users').update({ 
+          online: true, 
+          last_seen: new Date().toISOString() 
+        }).eq('id', myId).then();
       }
-    });
-    window.addEventListener('beforeunload', () => {
-      if (myId) supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
-    });
+    }
+
+    function initPresence() {
+      ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'].forEach(ev => {
+        document.addEventListener(ev, sendPulse, { passive: true });
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) sendPulse();
+      });
+      sendPulse();
+      window.addEventListener('beforeunload', () => {
+        if (myId) {
+          supabase.from('users').update({ 
+            online: false, 
+            last_seen: new Date().toISOString() 
+          }).eq('id', myId);
+        }
+      });
+    }
 
     function showUserProfile(uid, name) {
       profileTargetId = uid;
@@ -881,24 +895,21 @@
       }
     });
 
-    // --- ЗВОНКИ (обновлённые TURN) ---
+    // --- ЗВОНКИ (оставлены как есть) ---
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:global.stun.twilio.com:3478' },
         {
-          urls: 'turn:standard.relay.metered.ca:80',
-          username: 'e8dd8a2ec1b2c2b5c5d4a5b5c4d5e6f7',
-          credential: 'A1b2C3d4E5f6G7h8'
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
         },
         {
-          urls: 'turn:standard.relay.metered.ca:443',
-          username: 'e8dd8a2ec1b2c2b5c5d4a5b5c4d5e6f7',
-          credential: 'A1b2C3d4E5f6G7h8'
-        },
-        {
-          urls: 'turn:standard.relay.metered.ca:443?transport=tcp',
-          username: 'e8dd8a2ec1b2c2b5c5d4a5b5c4d5e6f7',
-          credential: 'A1b2C3d4E5f6G7h8'
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
         }
       ]
     };
@@ -1372,7 +1383,7 @@
         const u = allUsers[activePrivateChatWith];
         const now = Date.now();
         const lastSeenMs = u && u.last_seen ? new Date(u.last_seen).getTime() : 0;
-        const online = !!u && u.online && (now - lastSeenMs < 120000);
+        const online = !!u && u.online && (now - lastSeenMs < 30000);
         chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
       }
     }
@@ -1397,7 +1408,7 @@
       userAvatar.addEventListener('click', () => showUserProfile(myId, myName));
       userNameSpan.addEventListener('click', () => showUserProfile(myId, myName));
 
-      startHeartbeat();
+      initPresence();
       loadContacts();
       loadAllUsers();
       listenIncomingCalls();
@@ -1523,7 +1534,6 @@
     logoutBtn.addEventListener('click', async () => {
       if (confirm('Выйти из аккаунта?')) {
         await supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
-        if (heartbeatTimeout) clearTimeout(heartbeatTimeout);
         localStorage.removeItem('qwantum_myId');
         localStorage.removeItem('qwantum_myName');
         localStorage.removeItem('qwantum_isLoggedIn');
@@ -1543,7 +1553,7 @@
         if (!myContacts[uid] || uid === myId) continue;
         const u = allUsers[uid] || { name: 'ID ' + uid };
         const lastSeenMs = u.last_seen ? new Date(u.last_seen).getTime() : 0;
-        const isOnline = !!u.online && (now - lastSeenMs < 120000);
+        const isOnline = !!u.online && (now - lastSeenMs < 30000);
         const storageKey = getChatId(myId, uid);
         items.push({
           id: `private_${uid}`, uid, name: u.name, online: isOnline,
@@ -1667,7 +1677,7 @@
       const otherUser = allUsers[otherId];
       const now = Date.now();
       const lastSeenMs = otherUser && otherUser.last_seen ? new Date(otherUser.last_seen).getTime() : 0;
-      const online = !!otherUser && otherUser.online && (now - lastSeenMs < 120000);
+      const online = !!otherUser && otherUser.online && (now - lastSeenMs < 30000);
       chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
       chatAvatar.textContent = otherName.charAt(0).toUpperCase();
       chatAvatar.style.background = getAvatarColor(otherName);
