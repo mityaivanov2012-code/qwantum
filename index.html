@@ -898,7 +898,7 @@
       }
     });
 
-    // --- ЗВОНКИ (Yandex TURN + без автозакрытия при failed) ---
+    // --- ЗВОНКИ (с логированием и без автозакрытия) ---
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -978,7 +978,7 @@
         } else if (pc.connectionState === 'failed') {
           activeStatus.textContent = 'Сбой соединения';
           notify('⚠️ Не удалось установить аудиосвязь');
-          // НЕ закрываем звонок автоматически, даём пользователю увидеть
+          // НЕ закрываем звонок автоматически
         } else if (pc.connectionState === 'disconnected') {
           activeStatus.textContent = 'Связь потеряна...';
         }
@@ -1008,46 +1008,52 @@
     }
 
     callBtn.addEventListener('click', async () => {
-      if (!activePrivateChatWith) return notify('Звонки только в личных чатах');
-      if (pc) return notify('Уже в звонке');
-      unlockAudio();
-      if (!(await requestMicAndStart())) return;
+      console.log('call button clicked');
+      try {
+        if (!activePrivateChatWith) { notify('Звонки только в личных чатах'); return; }
+        if (pc) { notify('Уже в звонке'); return; }
+        unlockAudio();
+        if (!(await requestMicAndStart())) return;
 
-      currentCallWith = activePrivateChatWith;
-      currentCallRecordedId = null;
-      remoteCandidateQueue = [];
-      const otherName = chatName.textContent;
-      const callId = getChatId(myId, currentCallWith);
+        currentCallWith = activePrivateChatWith;
+        currentCallRecordedId = null;
+        remoteCandidateQueue = [];
+        const otherName = chatName.textContent;
+        const callId = getChatId(myId, currentCallWith);
 
-      pc = new RTCPeerConnection(servers);
-      wireConnectionState();
-      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          console.log('📤 send cand:', e.candidate.type || 'host');
-          supabase.from('call_candidates').insert({ chat_id: callId, from_user: myId, candidate: e.candidate.toJSON() }).then();
-        }
-      };
-      pc.ontrack = (e) => setupRemoteAudio(e.streams[0]);
+        pc = new RTCPeerConnection(servers);
+        wireConnectionState();
+        localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+        pc.onicecandidate = (e) => {
+          if (e.candidate) {
+            console.log('📤 send cand:', e.candidate.type || 'host');
+            supabase.from('call_candidates').insert({ chat_id: callId, from_user: myId, candidate: e.candidate.toJSON() }).then();
+          }
+        };
+        pc.ontrack = (e) => setupRemoteAudio(e.streams[0]);
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
 
-      await supabase.from('calls').upsert({
-        chat_id: callId, caller_id: myId, caller_name: myName,
-        callee_id: currentCallWith, callee_name: otherName,
-        offer: { type: offer.type, sdp: offer.sdp }, status: 'ringing'
-      });
+        await supabase.from('calls').upsert({
+          chat_id: callId, caller_id: myId, caller_name: myName,
+          callee_id: currentCallWith, callee_name: otherName,
+          offer: { type: offer.type, sdp: offer.sdp }, status: 'ringing'
+        });
 
-      showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...');
-      listenForAnswer(callId);
+        showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...');
+        listenForAnswer(callId);
 
-      iceRestartTimeout = setTimeout(() => {
-        if (pc && pc.connectionState !== 'connected') {
-          console.warn('🔄 ICE restart timeout');
-          try { pc.restartIce(); } catch(e){}
-        }
-      }, 5000);
+        iceRestartTimeout = setTimeout(() => {
+          if (pc && pc.connectionState !== 'connected') {
+            console.warn('🔄 ICE restart timeout');
+            try { pc.restartIce(); } catch(e){}
+          }
+        }, 5000);
+      } catch (err) {
+        console.error('❌ Ошибка в callBtn:', err);
+        notify('❌ Ошибка: ' + err.message);
+      }
     });
 
     function listenForAnswer(callId) {
