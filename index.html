@@ -563,8 +563,10 @@
     let chatLastTimes = JSON.parse(localStorage.getItem('qwantum_chatTimes') || '{}');
     let isWindowFocused = document.hasFocus();
     let currentPinned = null;
-    let lastPulseTime = 0;
-    const PULSE_COOLDOWN = 5000;
+
+    // Presence
+    let presenceChannel = null;
+    let onlineUsers = new Set();
 
     // звонки
     let pc = null;
@@ -748,36 +750,36 @@
 
     function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 
-    // --- СТАТУС "В СЕТИ" ---
-    function sendPulse() {
-      const now = Date.now();
-      if (now - lastPulseTime < PULSE_COOLDOWN) return;
-      lastPulseTime = now;
-      if (myId) {
-        supabase.from('users').update({ 
-          online: true, 
-          last_seen: new Date().toISOString() 
-        }).eq('id', myId).then();
-      }
-    }
-
+    // --- PRESENCE (СТАТУС ОНЛАЙН) ---
     function initPresence() {
-      ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'].forEach(ev => {
-        document.addEventListener(ev, sendPulse, { passive: true });
+      if (presenceChannel) supabase.removeChannel(presenceChannel);
+      presenceChannel = supabase.channel('online-users', {
+        config: { presence: { key: myId } }
       });
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) sendPulse();
-      });
-      window.addEventListener('focus', sendPulse);
-      sendPulse();
-      window.addEventListener('beforeunload', () => {
-        if (myId) {
-          supabase.from('users').update({ 
-            online: false, 
-            last_seen: new Date().toISOString() 
-          }).eq('id', myId);
-        }
-      });
+
+      presenceChannel
+        .on('presence', { event: 'sync' }, () => {
+          const state = presenceChannel.presenceState();
+          onlineUsers = new Set(Object.keys(state));
+          buildContactsList();
+          if (activePrivateChatWith) {
+            const online = onlineUsers.has(activePrivateChatWith);
+            chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
+          }
+        })
+        .on('presence', { event: 'join' }, ({ key }) => {
+          onlineUsers.add(key);
+          buildContactsList();
+        })
+        .on('presence', { event: 'leave' }, ({ key }) => {
+          onlineUsers.delete(key);
+          buildContactsList();
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await presenceChannel.track({ online_at: new Date().toISOString() });
+          }
+        });
     }
 
     function showUserProfile(uid, name) {
@@ -896,20 +898,24 @@
       }
     });
 
-    // --- ЗВОНКИ (ВЕРНУЛ САМУЮ ПЕРВУЮ КОНФИГУРАЦИЮ) ---
+    // --- ЗВОНКИ (CLOUDFLARE TURN) ---
     const servers = {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
         {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
+          urls: 'turn:turn.cloudflare.com:3478',
+          username: 'cloudflare',
+          credential: 'cloudflare'
         },
         {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
+          urls: 'turn:turn.cloudflare.com:443',
+          username: 'cloudflare',
+          credential: 'cloudflare'
+        },
+        {
+          urls: 'turn:turn.cloudflare.com:5349',
+          username: 'cloudflare',
+          credential: 'cloudflare'
         }
       ]
     };
@@ -1380,10 +1386,7 @@
       if (data) data.forEach(u => allUsers[u.id] = u);
       buildContactsList();
       if (activePrivateChatWith) {
-        const u = allUsers[activePrivateChatWith];
-        const now = Date.now();
-        const lastSeenMs = u && u.last_seen ? new Date(u.last_seen).getTime() : 0;
-        const online = !!u && u.online && (now - lastSeenMs < 30000);
+        const online = onlineUsers.has(activePrivateChatWith);
         chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
       }
     }
@@ -1534,6 +1537,7 @@
     logoutBtn.addEventListener('click', async () => {
       if (confirm('Выйти из аккаунта?')) {
         await supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
+        if (presenceChannel) await presenceChannel.untrack();
         localStorage.removeItem('qwantum_myId');
         localStorage.removeItem('qwantum_myName');
         localStorage.removeItem('qwantum_isLoggedIn');
@@ -1548,12 +1552,10 @@
       const items = [];
       items.push({ id: 'general', name: 'Общий чат', isGeneral: true, lastTime: chatLastTimes['general'] || 0, unread: unreadCounts['general'] || 0 });
 
-      const now = Date.now();
       for (const uid in myContacts) {
         if (!myContacts[uid] || uid === myId) continue;
         const u = allUsers[uid] || { name: 'ID ' + uid };
-        const lastSeenMs = u.last_seen ? new Date(u.last_seen).getTime() : 0;
-        const isOnline = !!u.online && (now - lastSeenMs < 30000);
+        const isOnline = onlineUsers.has(uid);
         const storageKey = getChatId(myId, uid);
         items.push({
           id: `private_${uid}`, uid, name: u.name, online: isOnline,
@@ -1674,10 +1676,7 @@
       currentPinned = null;
       pinnedBanner.classList.remove('active');
       chatName.textContent = otherName;
-      const otherUser = allUsers[otherId];
-      const now = Date.now();
-      const lastSeenMs = otherUser && otherUser.last_seen ? new Date(otherUser.last_seen).getTime() : 0;
-      const online = !!otherUser && otherUser.online && (now - lastSeenMs < 30000);
+      const online = onlineUsers.has(otherId);
       chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
       chatAvatar.textContent = otherName.charAt(0).toUpperCase();
       chatAvatar.style.background = getAvatarColor(otherName);
