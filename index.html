@@ -898,23 +898,18 @@
       }
     });
 
-    // --- ЗВОНКИ (VK TURN) ---
+    // --- ЗВОНКИ (Yandex TURN + без автозакрытия при failed) ---
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         {
-          urls: 'turn:turn1.vk.com:3478',
+          urls: 'turn:turn.yandex.net:3478',
           username: '',
           credential: ''
         },
         {
-          urls: 'turn:turn2.vk.com:3478',
-          username: '',
-          credential: ''
-        },
-        {
-          urls: 'turn:turn.vk.com:443',
+          urls: 'turn:turn.yandex.net:443',
           username: '',
           credential: ''
         }
@@ -983,6 +978,7 @@
         } else if (pc.connectionState === 'failed') {
           activeStatus.textContent = 'Сбой соединения';
           notify('⚠️ Не удалось установить аудиосвязь');
+          // НЕ закрываем звонок автоматически, даём пользователю увидеть
         } else if (pc.connectionState === 'disconnected') {
           activeStatus.textContent = 'Связь потеряна...';
         }
