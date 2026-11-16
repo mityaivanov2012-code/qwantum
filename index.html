@@ -898,20 +898,15 @@
       }
     });
 
-    // --- ЗВОНКИ (TURN восстановлен, кнопка обёрнута) ---
+    // --- ЗВОНКИ (LOCALTUNNEL) ---
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
+          urls: 'turn:polite-parrots-warn.loca.lt:443?transport=tcp',
+          username: 'qwantum',
+          credential: 'SuperSecretPassword123'
         }
       ]
     };
@@ -1007,7 +1002,6 @@
     }
 
     callBtn.addEventListener('click', async () => {
-      console.log('call btn clicked');
       if (!activePrivateChatWith) return notify('Звонки только в личных чатах');
       if (pc) return notify('Уже в звонке');
       unlockAudio();
