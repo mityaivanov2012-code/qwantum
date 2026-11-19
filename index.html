@@ -272,6 +272,27 @@
     .chat-area { display: flex !important; position: static; }
     .sidebar { display: flex !important; }
   }
+
+  /* === Поиск и меню внизу сайдбара === */
+  .bottom-tools { padding: 10px 12px 14px; border-top: 1px solid #293263; position: relative; background: rgba(0,0,0,0.15); }
+  .bottom-menu-toggle { width: 100%; padding: 12px; border-radius: 40px; background: var(--accent); border: none; color: white; font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,176,255,0.35); }
+  .bottom-menu-toggle:hover { filter: brightness(1.1); }
+  .bottom-menu { background: #151e42; border: 1px solid #33407a; border-radius: 14px; padding: 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .bottom-menu.hidden { display: none; }
+  .bottom-search-input { width: 100%; background: #0e1533; border: 1px solid #33407a; border-radius: 30px; padding: 10px 14px; color: white; font-size: 14px; outline: none; box-sizing: border-box; }
+  .bottom-search-input::placeholder { color: #7a89c0; }
+  .bottom-menu-btn { background: #1d2a5e; border: 1px solid #33407a; color: #d8e2ff; border-radius: 10px; padding: 10px 12px; font-size: 14px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 8px; }
+  .bottom-menu-btn:hover { background: #26346b; }
+
+  /* === Модалка добавления контакта === */
+  #addContactModal { position: fixed; inset: 0; background: rgba(4,8,20,0.7); z-index: 3000; display: none; align-items: center; justify-content: center; }
+  #addContactModal.active { display: flex; }
+  .ac-card { background: #121a38; border: 1px solid #33407a; border-radius: 18px; padding: 22px; width: 320px; max-width: calc(100vw - 32px); }
+  .ac-card h3 { margin: 0 0 14px; color: #d8e2ff; }
+  .ac-card input { width: 100%; box-sizing: border-box; background: #0e1533; border: 1px solid #33407a; border-radius: 10px; padding: 11px 12px; color: white; font-size: 15px; margin-bottom: 10px; outline: none; }
+  .ac-btn { width: 100%; padding: 11px; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; }
+  .ac-save { background: var(--accent); color: white; font-weight: 600; }
+  .ac-cancel { background: transparent; color: #7a89c0; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -349,14 +370,6 @@
           </div>
         </div>
 
-        <div class="search-section">
-          <div class="search-title">🔍 НАЙТИ ПО ID</div>
-          <div class="search-box">
-            <input type="text" class="search-input" id="searchInput" placeholder="9 цифр ID..." maxlength="9" inputmode="numeric">
-            <button class="search-submit" id="searchBtn" title="Найти"><i class="fas fa-times"></i></button>
-          </div>
-        </div>
-
         <div class="contacts-section">
           <div class="section-title">
             <span>💬 Контакты</span>
@@ -365,6 +378,14 @@
             </div>
           </div>
           <div class="contacts-list" id="contactsList"></div>
+        </div>
+
+        <div class="bottom-tools">
+          <div class="bottom-menu hidden" id="bottomMenu">
+            <input type="text" class="bottom-search-input" id="bottomSearchInput" placeholder="Поиск по контактам...">
+            <button class="bottom-menu-btn" id="addContactMenuBtn"><i class="fas fa-user-plus"></i> Добавить контакт</button>
+          </div>
+          <button class="bottom-menu-toggle" id="bottomMenuBtn"><i class="fas fa-magnifying-glass"></i> Поиск контактов</button>
         </div>
       </div>
 
@@ -621,8 +642,15 @@
     const userSidebarId = document.getElementById('userSidebarId');
     const editNameBtn = document.getElementById('editNameBtn');
     const logoutBtn = document.getElementById('logoutBtn');
-    const searchInput = document.getElementById('searchInput');
-    const searchBtn = document.getElementById('searchBtn');
+    const bottomMenuBtn = document.getElementById('bottomMenuBtn');
+    const bottomMenu = document.getElementById('bottomMenu');
+    const bottomSearchInput = document.getElementById('bottomSearchInput');
+    const addContactMenuBtn = document.getElementById('addContactMenuBtn');
+    const acModal = document.getElementById('addContactModal');
+    const acId = document.getElementById('acId');
+    const acName = document.getElementById('acName');
+    let contactFilter = '';
+    let contactAliases = {};
     const contactsList = document.getElementById('contactsList');
     const newChatBtn = document.getElementById('newChatBtn');
     const backBtn = document.getElementById('backToContacts');
@@ -1567,9 +1595,13 @@
       const items = [];
       items.push({ id: 'general', name: 'Общий чат', isGeneral: true, lastTime: chatLastTimes['general'] || 0, unread: unreadCounts['general'] || 0 });
 
+      loadAliases();
+      const f = (contactFilter || '').trim().toLowerCase();
       for (const uid in myContacts) {
         if (!myContacts[uid] || uid === myId) continue;
-        const u = allUsers[uid] || { name: 'ID ' + uid };
+        const nm = getAlias(uid);
+        if (f && !(nm.toLowerCase().includes(f) || String(uid).includes(f))) continue;
+        const u = { name: nm };
         const isOnline = onlineUsers.has(uid);
         const storageKey = getChatId(myId, uid);
         items.push({
@@ -1589,7 +1621,7 @@
       if (items.length === 1) {
         const empty = document.createElement('div');
         empty.className = 'empty-contacts';
-        empty.innerHTML = 'Пока нет контактов.<br>Введите 9-значный ID в поиске выше,<br>нажмите ✕ и добавьте контакт.';
+        empty.innerHTML = f ? 'Ничего не найдено.' : 'Пока нет контактов.<br>Нажмите «Поиск контактов» внизу,<br>затем «Добавить контакт».';
         contactsList.appendChild(empty);
       }
 
@@ -1616,35 +1648,68 @@
       });
     }
 
-    async function searchById() {
-      const raw = searchInput.value.trim();
-      if (!raw) return notify('Введите 9-значный ID');
-      if (!/^\d{9}$/.test(raw)) return notify('ID — ровно 9 цифр');
-      if (raw === myId) return notify('Это ваш ID');
+    bottomMenuBtn.addEventListener('click', () => {
+      bottomMenu.classList.toggle('hidden');
+      contactFilter = '';
+      bottomSearchInput.value = '';
+      buildContactsList();
+      if (!bottomMenu.classList.contains('hidden')) bottomSearchInput.focus();
+    });
 
+    bottomSearchInput.addEventListener('input', () => {
+      contactFilter = bottomSearchInput.value.trim();
+      buildContactsList();
+    });
+
+    function aliasKey() { return 'qwantum_aliases_' + myId; }
+    function loadAliases() {
+      try { contactAliases = JSON.parse(localStorage.getItem(aliasKey()) || '{}'); }
+      catch (e) { contactAliases = {}; }
+    }
+    function getAlias(uid) {
+      return contactAliases[uid] || (allUsers[uid] ? allUsers[uid].name : ('ID ' + uid));
+    }
+
+    function openAddContactModal() {
+      acId.value = ''; acName.value = '';
+      acModal.classList.add('active');
+      setTimeout(() => acId.focus(), 50);
+    }
+
+    addContactMenuBtn.addEventListener('click', openAddContactModal);
+
+    async function saveNewContact() {
+      const raw = acId.value.trim();
+      const nm = acName.value.trim();
+      if (!/^\d{9}$/.test(raw)) return notify('ID — ровно 9 цифр');
+      if (raw === myId) return notify('Это ваш собственный ID');
+      if (!nm) return notify('Введите имя контакта');
       try {
         const { data, error } = await supabase.from('users').select('name').eq('id', raw).limit(1);
         if (error) return notify('❌ Ошибка сервера: ' + error.message);
         if (!data || data.length === 0) return notify('Пользователь с таким ID не найден');
-        showUserProfile(raw, data.name);
+        if (!isContact(raw)) {
+          await supabase.from('contacts').insert({ owner_id: myId, contact_id: raw });
+          myContacts[raw] = true;
+        }
+        contactAliases[raw] = nm;
+        localStorage.setItem(aliasKey(), JSON.stringify(contactAliases));
+        acModal.classList.remove('active');
+        buildContactsList();
+        notify('Контакт добавлен: ' + nm);
+        openPrivateChat(raw, nm);
       } catch (e) {
         console.error(e);
-        notify('❌ Ошибка поиска');
+        notify('❌ Не удалось сохранить контакт');
       }
     }
 
-    searchBtn.addEventListener('click', searchById);
-    searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); searchById(); }
-    });
-    searchInput.addEventListener('input', () => {
-      searchInput.value = searchInput.value.replace(/\D/g, '').slice(0, 9);
-    });
+    acId.addEventListener('input', () => { acId.value = acId.value.replace(/\D/g, '').slice(0, 9); });
+    acId.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveNewContact(); });
+    acName.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveNewContact(); });
+    acModal.addEventListener('click', (e) => { if (e.target === acModal) acModal.classList.remove('active'); });
 
-    newChatBtn.addEventListener('click', () => {
-      searchInput.focus();
-      notify('Введите 9-значный ID и нажмите ✕');
-    });
+    newChatBtn.addEventListener('click', openAddContactModal);
 
     function openRoom(roomId, roomName) {
       currentRoom = roomId;
@@ -2280,5 +2345,16 @@
 
     updateTitle();
   </script>
+
+  <div id="addContactModal">
+    <div class="ac-card">
+      <h3><i class="fas fa-user-plus"></i> Добавить контакт</h3>
+      <input type="text" id="acId" placeholder="Qwantum ID (9 цифр)" maxlength="9" inputmode="numeric">
+      <input type="text" id="acName" placeholder="Как записать контакт (например, Вася)" maxlength="30">
+      <button class="ac-btn ac-save" id="acSave">Сохранить</button>
+      <button class="ac-btn ac-cancel" id="acCancel">Отмена</button>
+    </div>
+  </div>
+
 </body>
 </html>
