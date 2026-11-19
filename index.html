@@ -898,21 +898,17 @@
       }
     });
 
-    // --- ЗВОНКИ (СОБСТВЕННЫЙ VPS) ---
+    // --- ЗВОНКИ (LOCALTUNNEL) ---
     const servers = {
       iceServers: [
-        { urls: 'stun:146.19.142.125:3478' },
         { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
         {
-          urls: [
-            'turn:146.19.142.125:3478?transport=udp',
-            'turn:146.19.142.125:3478?transport=tcp'
-          ],
+          urls: 'turn:polite-parrots-warn.loca.lt:443?transport=tcp',
           username: 'qwantum',
-          credential: 'EazkdHbfWs' // <-- Твой реальный пароль
+          credential: 'SuperSecretPassword123'
         }
-      ],
-      iceCandidatePoolSize: 10
+      ]
     };
 
     function setupRemoteAudio(stream) {
