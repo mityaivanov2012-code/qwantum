@@ -72,7 +72,7 @@
   .sidebar-header { padding: 16px; background: rgba(0, 0, 0, 0.3); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #293263; gap: 10px; }
   .logo-mini { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; color: white; flex-shrink: 0; }
   .logo-mini i { color: var(--accent); font-size: 28px; filter: drop-shadow(0 0 8px #00b0ff); }
-  
+
   .user-profile { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; justify-content: flex-end; }
   .user-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(145deg, #304ffe, #aa00ff); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; color: white; box-shadow: 0 0 15px #304ffe; flex-shrink: 0; position: relative; cursor: pointer; }
   .user-avatar .status-dot { position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--success); border: 2px solid #0a0a20; }
@@ -85,17 +85,11 @@
   .user-id-small { font-size: 11px; color: #a0b2e5; font-family: monospace; white-space: nowrap; }
   .logout-btn { background: none; border: none; color: #d0daff; font-size: 22px; padding: 8px; cursor: pointer; flex-shrink: 0; }
 
-  .search-section { padding: 16px 14px 8px; }
-  .search-title { color: #c0ceff; font-size: 13px; font-weight: 500; margin-bottom: 8px; letter-spacing: 0.5px; }
-  .search-box { position: relative; }
-  .search-input { width: 100%; background: #151e42; border: 1px solid #33407a; border-radius: 60px; padding: 12px 48px 12px 18px; color: white; font-size: 15px; }
-  .search-input::placeholder { color: #7a89c0; }
-  .search-submit { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%; background: var(--accent); border: none; color: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .search-section { display: none !important; }
 
   .contacts-section { flex: 1; overflow-y: auto; padding: 8px 12px 12px; }
   .section-title { display: flex; justify-content: space-between; align-items: center; color: #d8e2ff; font-weight: 600; font-size: 16px; margin-bottom: 12px; }
   .section-actions { display: flex; gap: 8px; }
-  .new-chat-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--accent); border: none; color: white; font-size: 20px; box-shadow: 0 4px 15px #00b0ff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
   .contacts-list { display: flex; flex-direction: column; gap: 6px; }
   .empty-contacts { color: #7f90cf; font-size: 13px; text-align: center; padding: 20px 10px; line-height: 1.5; }
@@ -107,8 +101,67 @@
   .contact-info { flex: 1; min-width: 0; }
   .contact-name { font-weight: 600; color: white; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .contact-id { font-size: 11px; color: #a5b6ed; font-family: monospace; }
-  
   .unread-badge { background: var(--success); color: #000; font-weight: 800; min-width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 11px; padding: 0 6px; margin-left: 8px; flex-shrink: 0; }
+
+  .bottom-bar {
+    display: flex; gap: 10px; align-items: center;
+    padding: 12px 14px; border-top: 1px solid #28305a;
+    background: rgba(0,0,0,0.25); flex-shrink: 0;
+  }
+  .bottom-bar .search-box { position: relative; flex: 1; }
+  .bottom-bar .search-icon {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: #7a89c0; font-size: 14px; pointer-events: none;
+  }
+  .bottom-bar .search-input {
+    width: 100%; background: #151e42; border: 1px solid #33407a; border-radius: 60px;
+    padding: 12px 18px 12px 40px; color: white; font-size: 15px;
+  }
+  .bottom-bar .search-input::placeholder { color: #7a89c0; }
+  .bottom-bar .new-chat-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent); border: none; color: white; font-size: 20px;
+    box-shadow: 0 4px 15px #00b0ff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  .actions-menu { display: none; position: fixed; inset: 0; z-index: 4000; }
+  .actions-menu.active { display: block; }
+  .actions-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+  .actions-sheet {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: #141e42; border-radius: 24px 24px 0 0;
+    padding: 16px; display: flex; flex-direction: column; gap: 8px;
+    border-top: 1px solid #4f6ac0; animation: sheet-up 0.2s ease;
+  }
+  @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .action-item {
+    width: 100%; padding: 16px; border: none; border-radius: 16px;
+    background: #2c3568; color: white; font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; gap: 12px; cursor: pointer; text-align: left;
+  }
+  .action-item i { width: 22px; text-align: center; color: var(--accent); }
+  .action-item.cancel { background: transparent; color: #9aabdd; justify-content: center; }
+
+  .simple-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    z-index: 4500; align-items: center; justify-content: center; backdrop-filter: blur(8px); padding: 16px;
+  }
+  .simple-modal.active { display: flex; }
+  .simple-modal .modal-content { max-width: 420px; width: 100%; }
+  .group-members-list {
+    max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+    background: rgba(0,0,0,0.3); border-radius: 12px; padding: 8px;
+  }
+  .group-member-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    border-radius: 8px; cursor: pointer;
+  }
+  .group-member-row:hover { background: rgba(255,255,255,0.05); }
+  .group-member-row input { accent-color: var(--accent); }
+  .group-member-row .gm-name { color: white; font-size: 14px; flex: 1; }
+  .group-member-row .gm-id { color: #9aabdd; font-size: 11px; font-family: monospace; }
+  .contact-avatar.group-avatar { background: linear-gradient(145deg, #7c4dff, #00b0ff) !important; }
 
   .chat-area { flex: 1; display: flex; flex-direction: column; background: rgba(5, 8, 22, 0.7); backdrop-filter: blur(10px); overflow: hidden; min-width: 0; position: relative; }
   .no-chat-selected { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #95a6da; font-size: 18px; gap: 12px; }
@@ -126,7 +179,7 @@
   .online-status { color: var(--success); font-size: 12px; display: flex; align-items: center; gap: 4px; }
   .online-status .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; }
   .offline-status { color: #a5b7f0; font-size: 12px; display: flex; align-items: center; gap: 4px; }
-  
+
   .call-btn { background: var(--success); color: #000; width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,230,118,0.4); transition: 0.2s; flex-shrink: 0; }
   .call-btn:hover { transform: scale(1.1); }
   .history-btn { background: #2c3568; color: #dae2ff; width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.2s; }
@@ -349,22 +402,19 @@
           </div>
         </div>
 
-        <div class="search-section">
-          <div class="search-title">🔍 НАЙТИ ПО ID</div>
-          <div class="search-box">
-            <input type="text" class="search-input" id="searchInput" placeholder="9 цифр ID..." maxlength="9" inputmode="numeric">
-            <button class="search-submit" id="searchBtn" title="Найти"><i class="fas fa-times"></i></button>
-          </div>
-        </div>
-
-        <div class="contacts-section">
+        <div class="contacts-section" id="contactsSection">
           <div class="section-title">
             <span>💬 Контакты</span>
-            <div class="section-actions">
-              <button class="new-chat-btn" id="newChatBtn" title="Найти по ID"><i class="fas fa-plus"></i></button>
-            </div>
           </div>
           <div class="contacts-list" id="contactsList"></div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="search-box">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="search-input" id="contactsFilter" placeholder="Поиск по контактам...">
+          </div>
+          <button class="new-chat-btn" id="plusBtn" title="Меню"><i class="fas fa-plus"></i></button>
         </div>
       </div>
 
@@ -413,7 +463,7 @@
               <div class="rec-time" id="rec-time">00:00</div>
               <div class="rec-hint">Идёт запись... нажмите ещё раз для отправки</div>
             </div>
-            
+
             <div style="display:flex; gap:12px; width:100%; align-items:center;">
               <button class="attach-btn" id="attachBtn"><i class="fas fa-paperclip"></i></button>
               <input type="file" id="fileInput" style="display: none;">
@@ -424,6 +474,47 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="actions-menu" class="actions-menu">
+    <div class="actions-backdrop" id="actionsBackdrop"></div>
+    <div class="actions-sheet">
+      <button class="action-item" id="menuAddContact"><i class="fas fa-user-plus"></i> Добавить контакт</button>
+      <button class="action-item" id="menuCreateGroup"><i class="fas fa-users"></i> Создать группу</button>
+      <button class="action-item cancel" id="menuCancel"><i class="fas fa-times"></i> Отмена</button>
+    </div>
+  </div>
+
+  <div id="add-contact-modal" class="simple-modal">
+    <div class="modal-content">
+      <h3>Добавить контакт</h3>
+      <div class="form-group">
+        <label class="form-label">Qwantum ID (9 цифр)</label>
+        <input type="text" id="addContactId" class="form-input" maxlength="9" inputmode="numeric" placeholder="123456789">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Как записать (необязательно)</label>
+        <input type="text" id="addContactAlias" class="form-input" maxlength="15" placeholder="Например: Вася">
+      </div>
+      <button class="modal-btn add" id="addContactConfirm"><i class="fas fa-check"></i> Добавить</button>
+      <button class="modal-btn cancel" id="addContactCancel">Отмена</button>
+    </div>
+  </div>
+
+  <div id="create-group-modal" class="simple-modal">
+    <div class="modal-content">
+      <h3>Создать группу</h3>
+      <div class="form-group">
+        <label class="form-label">Название группы</label>
+        <input type="text" id="groupNameInput" class="form-input" maxlength="30" placeholder="Например: Проект X">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Участники (необязательно)</label>
+        <div class="group-members-list" id="groupMembersList"></div>
+      </div>
+      <button class="modal-btn add" id="createGroupConfirm"><i class="fas fa-check"></i> Создать</button>
+      <button class="modal-btn cancel" id="createGroupCancel">Отмена</button>
     </div>
   </div>
 
@@ -492,7 +583,6 @@
     const SUPABASE_KEY = 'sb_publishable_-W8nObbLatdoRXTZGptqpg__8CVj0zZ';
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // --- ЗВУКИ ---
     let audioCtx = null;
     let audioUnlocked = false;
 
@@ -563,12 +653,16 @@
     let chatLastTimes = JSON.parse(localStorage.getItem('qwantum_chatTimes') || '{}');
     let isWindowFocused = document.hasFocus();
     let currentPinned = null;
+    let contactAliases = JSON.parse(localStorage.getItem('qwantum_aliases') || '{}');
+    let myGroups = JSON.parse(localStorage.getItem('qwantum_groups') || '[]');
+    let contactsFilterText = '';
+    function displayNameFor(uid, fallbackName) { return contactAliases[uid] || fallbackName || ('ID ' + uid); }
+    function saveAliases() { localStorage.setItem('qwantum_aliases', JSON.stringify(contactAliases)); }
+    function saveGroups() { localStorage.setItem('qwantum_groups', JSON.stringify(myGroups)); }
 
-    // Presence
     let presenceChannel = null;
     let onlineUsers = new Set();
 
-    // звонки
     let pc = null;
     let localStream = null;
     let callTimerInterval = null;
@@ -583,14 +677,12 @@
     let remoteCandidateQueue = [];
     let iceRestartTimeout = null;
 
-    // голосовые
     let mediaRecorder = null;
     let audioChunks = [];
     let recStartTime = 0;
     let recTimerInterval = null;
     let recStream = null;
 
-    // Realtime подписки
     let messagesChannel = null;
     let pinnedChannel = null;
     let callsChannel = null;
@@ -621,10 +713,8 @@
     const userSidebarId = document.getElementById('userSidebarId');
     const editNameBtn = document.getElementById('editNameBtn');
     const logoutBtn = document.getElementById('logoutBtn');
-    const searchInput = document.getElementById('searchInput');
-    const searchBtn = document.getElementById('searchBtn');
+    const contactsFilterInput = document.getElementById('contactsFilter');
     const contactsList = document.getElementById('contactsList');
-    const newChatBtn = document.getElementById('newChatBtn');
     const backBtn = document.getElementById('backToContacts');
     const chatAvatar = document.getElementById('chatAvatar');
     const chatName = document.getElementById('chatName');
@@ -750,7 +840,6 @@
 
     function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 
-    // --- PRESENCE (СТАТУС ОНЛАЙН) ---
     function initPresence() {
       if (presenceChannel) supabase.removeChannel(presenceChannel);
       presenceChannel = supabase.channel('online-users', {
@@ -787,7 +876,7 @@
       profileTargetName = name;
       profileAvatarBig.textContent = name.charAt(0).toUpperCase();
       profileAvatarBig.style.background = getAvatarColor(name);
-      profileNameBig.textContent = name;
+      profileNameBig.textContent = displayNameFor(uid, name);
       profileIdBig.textContent = 'ID: ' + uid;
 
       const isSelf = uid === myId;
@@ -898,7 +987,6 @@
       }
     });
 
-        // --- ЗВОНКИ (СОБСТВЕННЫЙ VPS) ---
     const servers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -1274,7 +1362,6 @@
       muteCallBtn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
     });
 
-    // --- АВТОРИЗАЦИЯ ---
     function showRegister() { loginForm.classList.add('hidden'); registerForm.classList.remove('hidden'); userIdDisplay.classList.add('hidden'); }
     function showLogin() { loginForm.classList.remove('hidden'); registerForm.classList.add('hidden'); userIdDisplay.classList.add('hidden'); }
     switchToReg.addEventListener('click', showRegister);
@@ -1291,11 +1378,18 @@
       toggleRegisterPassword.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
     });
 
+    contactsFilterInput.addEventListener('input', () => {
+      contactsFilterText = contactsFilterInput.value.trim().toLowerCase();
+      buildContactsList();
+    });
+
     function subscribeToUserData() {
       if (messagesChannel) supabase.removeChannel(messagesChannel);
       messagesChannel = supabase.channel('global_messages')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
           const msg = payload.new;
+          tryImportGroupFromMessage(msg);
+          if (msg.text === '[GROUP]') return;
           const otherId = msg.chat_id.includes(myId) ? otherIdFromChatKey(msg.chat_id) : null;
           if (otherId && msg.sender_id !== myId) {
             const chatKey = msg.chat_id;
@@ -1322,14 +1416,16 @@
           }
           const isCurrentGeneral = currentRoom === 'general' && msg.chat_id === 'general';
           const isCurrentPrivate = currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith);
-          if (isCurrentGeneral || isCurrentPrivate) {
+          const isCurrentGroup = currentRoom && currentRoom.startsWith('group_') && msg.chat_id === currentRoom;
+          if (isCurrentGeneral || isCurrentPrivate || isCurrentGroup) {
             appendMessageLive(msg, currentRoom.startsWith('private_'));
           }
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
           const msg = payload.new;
           const isCurrent = (currentRoom === 'general' && msg.chat_id === 'general') ||
-            (currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith));
+            (currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith)) ||
+            (currentRoom && currentRoom.startsWith('group_') && msg.chat_id === currentRoom);
           if (isCurrent) {
             const el = document.getElementById(`msg-${msg.id}`);
             if (el) {
@@ -1366,7 +1462,22 @@
         }).subscribe();
     }
 
+    function tryImportGroupFromMessage(msg) {
+      if (!msg || msg.text !== '[GROUP]' || !msg.reply || !msg.reply.members) return;
+      const groupName = msg.reply.group_name;
+      const members = msg.reply.members;
+      if (!groupName || !Array.isArray(members)) return;
+      if (!members.includes(myId)) return;
+      const gid = msg.chat_id.replace(/^group_/, '');
+      if (myGroups.some(g => g.id === gid)) return;
+      myGroups.push({ id: gid, name: groupName, members, owner: msg.reply.owner, created_at: Date.now() });
+      saveGroups();
+      buildContactsList();
+      notify('Вас добавили в группу: ' + groupName);
+    }
+
     function appendMessageLive(msg, isPrivate) {
+      if (msg.text === '[GROUP]') return;
       if (hiddenMessages.includes(msg.id)) return;
       if (document.getElementById(`msg-${msg.id}`)) return;
 
@@ -1427,6 +1538,14 @@
       loadAllUsers();
       listenIncomingCalls();
       subscribeToUserData();
+
+      (async () => {
+        try {
+          const { data } = await supabase.from('messages')
+            .select('*').eq('text', '[GROUP]').order('created_at', { ascending: true });
+          if (data) data.forEach(tryImportGroupFromMessage);
+        } catch (e) { console.warn(e); }
+      })();
 
       if (window.innerWidth <= 768) {
         chatArea.classList.remove('active');
@@ -1573,12 +1692,33 @@
         const isOnline = onlineUsers.has(uid);
         const storageKey = getChatId(myId, uid);
         items.push({
-          id: `private_${uid}`, uid, name: u.name, online: isOnline,
-          lastTime: chatLastTimes[storageKey] || 0, unread: unreadCounts[storageKey] || 0
+          id: `private_${uid}`, uid,
+          name: displayNameFor(uid, u.name),
+          online: isOnline,
+          lastTime: chatLastTimes[storageKey] || 0,
+          unread: unreadCounts[storageKey] || 0
         });
       }
 
-      items.sort((a, b) => {
+      myGroups.forEach(g => {
+        const storageKey = 'group_' + g.id;
+        items.push({
+          id: storageKey, isGroup: true, groupId: g.id,
+          name: g.name,
+          lastTime: chatLastTimes[storageKey] || 0,
+          unread: unreadCounts[storageKey] || 0
+        });
+      });
+
+      const f = contactsFilterText;
+      const filtered = !f ? items : items.filter(it => {
+        if (it.isGeneral) return true;
+        const n = (it.name || '').toLowerCase();
+        const uid = String(it.uid || it.groupId || '');
+        return n.includes(f) || uid.includes(f);
+      });
+
+      filtered.sort((a, b) => {
         if (a.isGeneral && !b.isGeneral) return -1;
         if (!a.isGeneral && b.isGeneral) return 1;
         if (a.unread > 0 && b.unread === 0) return -1;
@@ -1586,20 +1726,27 @@
         return b.lastTime - a.lastTime;
       });
 
-      if (items.length === 1) {
+      if (filtered.length === 1 && filtered[0].isGeneral) {
         const empty = document.createElement('div');
         empty.className = 'empty-contacts';
-        empty.innerHTML = 'Пока нет контактов.<br>Введите 9-значный ID в поиске выше,<br>нажмите ✕ и добавьте контакт.';
+        empty.innerHTML = f ? 'Ничего не найдено' : 'Пока нет контактов.<br>Нажмите + внизу, чтобы добавить.';
         contactsList.appendChild(empty);
       }
 
-      items.forEach(item => {
+      filtered.forEach(item => {
         const el = document.createElement('div');
         el.className = `contact-item ${currentRoom === item.id ? 'active' : ''}`;
-        const avatar = item.isGeneral
-          ? `<div class="contact-avatar" style="background:#0066cc"><i class="fas fa-globe"></i></div>`
-          : `<div class="contact-avatar" style="background:${getAvatarColor(item.name)}">${item.name[0].toUpperCase()}${item.online ? '<div class="status-dot"></div>' : ''}</div>`;
-        const sub = item.isGeneral ? (item.lastTime ? formatTime(item.lastTime) : 'для всех') : `ID: ${item.uid}${item.online ? ' · в сети' : ''}`;
+        let avatar, sub;
+        if (item.isGeneral) {
+          avatar = `<div class="contact-avatar" style="background:#0066cc"><i class="fas fa-globe"></i></div>`;
+          sub = item.lastTime ? formatTime(item.lastTime) : 'для всех';
+        } else if (item.isGroup) {
+          avatar = `<div class="contact-avatar group-avatar"><i class="fas fa-users"></i></div>`;
+          sub = 'Группа';
+        } else {
+          avatar = `<div class="contact-avatar" style="background:${getAvatarColor(item.name)}">${item.name[0].toUpperCase()}${item.online ? '<div class="status-dot"></div>' : ''}</div>`;
+          sub = `ID: ${item.uid}${item.online ? ' · в сети' : ''}`;
+        }
         el.innerHTML = `
           ${avatar}
           <div class="contact-info">
@@ -1610,41 +1757,12 @@
         `;
         el.onclick = () => {
           if (item.isGeneral) openRoom('general', 'Общий чат');
+          else if (item.isGroup) openGroupChat(item.groupId, item.name);
           else openPrivateChat(item.uid, item.name);
         };
         contactsList.appendChild(el);
       });
     }
-
-    async function searchById() {
-      const raw = searchInput.value.trim();
-      if (!raw) return notify('Введите 9-значный ID');
-      if (!/^\d{9}$/.test(raw)) return notify('ID — ровно 9 цифр');
-      if (raw === myId) return notify('Это ваш ID');
-
-      try {
-        const { data, error } = await supabase.from('users').select('name').eq('id', raw).limit(1);
-        if (error) return notify('❌ Ошибка сервера: ' + error.message);
-        if (!data || data.length === 0) return notify('Пользователь с таким ID не найден');
-        showUserProfile(raw, data.name);
-      } catch (e) {
-        console.error(e);
-        notify('❌ Ошибка поиска');
-      }
-    }
-
-    searchBtn.addEventListener('click', searchById);
-    searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); searchById(); }
-    });
-    searchInput.addEventListener('input', () => {
-      searchInput.value = searchInput.value.replace(/\D/g, '').slice(0, 9);
-    });
-
-    newChatBtn.addEventListener('click', () => {
-      searchInput.focus();
-      notify('Введите 9-значный ID и нажмите ✕');
-    });
 
     function openRoom(roomId, roomName) {
       currentRoom = roomId;
@@ -1682,6 +1800,7 @@
     }
 
     function openPrivateChat(otherId, otherName) {
+      otherName = displayNameFor(otherId, otherName);
       if (!isContact(otherId)) {
         showUserProfile(otherId, otherName);
         return;
@@ -1722,6 +1841,34 @@
       loadPinned(storageKey);
     }
 
+    function openGroupChat(groupId, groupName) {
+      currentRoom = 'group_' + groupId;
+      currentChatName = groupName;
+      activePrivateChatWith = null;
+      currentPinned = null;
+      pinnedBanner.classList.remove('active');
+      chatName.textContent = groupName;
+      chatName.onclick = null;
+      chatUserId.textContent = 'Группа';
+      chatAvatar.textContent = groupName.charAt(0).toUpperCase();
+      chatAvatar.style.background = 'linear-gradient(145deg, #7c4dff, #00b0ff)';
+      chatAvatar.innerHTML = groupName.charAt(0).toUpperCase();
+      chatAvatar.onclick = null;
+      callBtn.style.display = 'none';
+      historyBtn.style.display = 'none';
+      unreadCounts[currentRoom] = 0;
+      localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
+      updateTitle();
+      messageInput.disabled = false;
+      sendBtn.disabled = false;
+      noChat.classList.add('hidden');
+      activeChatDiv.classList.remove('hidden');
+      if (window.innerWidth <= 768) { sidebar.classList.add('hidden'); chatArea.classList.add('active'); }
+      buildContactsList();
+      loadMessages(currentRoom, false);
+      loadPinned(currentRoom);
+    }
+
     backBtn.addEventListener('click', () => {
       if (window.innerWidth <= 768) {
         sidebar.classList.remove('hidden');
@@ -1746,20 +1893,24 @@
 
       let query = supabase.from('messages').select('*');
       if (isPrivate) query = query.eq('chat_id', roomPath);
-      else query = query.eq('chat_id', 'general');
+      else query = query.eq('chat_id', roomPath === 'general' ? 'general' : roomPath);
       const { data, error } = await query.order('created_at', { ascending: true });
-      
+
       if (error) {
         console.error(error);
         return;
       }
       if (data) {
-        data.forEach(msg => renderMessage(msg, isPrivate, roomPath));
+        data.forEach(msg => {
+          if (msg.text === '[GROUP]') return;
+          renderMessage(msg, isPrivate, roomPath);
+        });
       }
     }
 
     function renderMessage(data, isPrivate, roomPath) {
       if (hiddenMessages.includes(data.id)) return;
+      if (data.text === '[GROUP]') return;
       const isMe = data.sender_id === myId;
 
       const dayKey = (() => {
@@ -2107,7 +2258,8 @@
     }
 
     async function uploadFile(file) {
-      const ext = file.name.split('.').pop();
+      const nameToUse = file.name || ('file_' + Date.now());
+      const ext = nameToUse.split('.').pop() || 'bin';
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
       const { data, error } = await supabase.storage.from('qwantum-files').upload(fileName, file);
       if (error) throw error;
@@ -2277,6 +2429,103 @@
         });
       })
       .subscribe();
+
+    const actionsMenu = document.getElementById('actions-menu');
+    const plusBtn = document.getElementById('plusBtn');
+    plusBtn.addEventListener('click', () => actionsMenu.classList.add('active'));
+    document.getElementById('actionsBackdrop').addEventListener('click', () => actionsMenu.classList.remove('active'));
+    document.getElementById('menuCancel').addEventListener('click', () => actionsMenu.classList.remove('active'));
+
+    const addContactModal = document.getElementById('add-contact-modal');
+    const addContactIdInput = document.getElementById('addContactId');
+    const addContactAliasInput = document.getElementById('addContactAlias');
+    addContactIdInput.addEventListener('input', () => {
+      addContactIdInput.value = addContactIdInput.value.replace(/\D/g, '').slice(0, 9);
+    });
+    document.getElementById('menuAddContact').addEventListener('click', () => {
+      actionsMenu.classList.remove('active');
+      addContactIdInput.value = '';
+      addContactAliasInput.value = '';
+      addContactModal.classList.add('active');
+    });
+    document.getElementById('addContactCancel').addEventListener('click', () => addContactModal.classList.remove('active'));
+    addContactModal.addEventListener('click', (e) => { if (e.target === addContactModal) addContactModal.classList.remove('active'); });
+
+    document.getElementById('addContactConfirm').addEventListener('click', async () => {
+      const uid = addContactIdInput.value.trim();
+      const alias = addContactAliasInput.value.trim();
+      if (!/^\d{9}$/.test(uid)) return notify('ID — ровно 9 цифр');
+      if (uid === myId) return notify('Это ваш ID');
+      if (isContact(uid)) return notify('Уже в контактах');
+      try {
+        const { data, error } = await supabase.from('users').select('name').eq('id', uid).limit(1);
+        if (error) return notify('❌ Ошибка сервера: ' + error.message);
+        if (!data || data.length === 0) return notify('Пользователь с таким ID не найден');
+        const { error: insErr } = await supabase.from('contacts').insert({ owner_id: myId, contact_id: uid });
+        if (insErr) return notify('❌ Не удалось добавить: ' + insErr.message);
+        myContacts[uid] = true;
+        if (alias) { contactAliases[uid] = alias; saveAliases(); }
+        addContactModal.classList.remove('active');
+        buildContactsList();
+        notify('Контакт добавлен: ' + displayNameFor(uid, data[0].name));
+      } catch (e) {
+        console.error(e);
+        notify('❌ Не удалось добавить');
+      }
+    });
+
+    const createGroupModal = document.getElementById('create-group-modal');
+    const groupNameInput = document.getElementById('groupNameInput');
+    const groupMembersList = document.getElementById('groupMembersList');
+
+    document.getElementById('menuCreateGroup').addEventListener('click', () => {
+      actionsMenu.classList.remove('active');
+      groupNameInput.value = '';
+      renderGroupMembersPicker();
+      createGroupModal.classList.add('active');
+    });
+    document.getElementById('createGroupCancel').addEventListener('click', () => createGroupModal.classList.remove('active'));
+    createGroupModal.addEventListener('click', (e) => { if (e.target === createGroupModal) createGroupModal.classList.remove('active'); });
+
+    function renderGroupMembersPicker() {
+      groupMembersList.innerHTML = '';
+      const uids = Object.keys(myContacts).filter(u => myContacts[u] && u !== myId);
+      if (uids.length === 0) {
+        groupMembersList.innerHTML = '<div style="color:#7f90cf;font-size:13px;padding:10px;text-align:center;">Нет контактов — группа будет только для вас</div>';
+        return;
+      }
+      uids.forEach(uid => {
+        const u = allUsers[uid] || { name: 'ID ' + uid };
+        const row = document.createElement('label');
+        row.className = 'group-member-row';
+        row.innerHTML = `<input type="checkbox" value="${uid}"><span class="gm-name">${displayNameFor(uid, u.name)}</span><span class="gm-id">${uid}</span>`;
+        groupMembersList.appendChild(row);
+      });
+    }
+
+    document.getElementById('createGroupConfirm').addEventListener('click', async () => {
+      const name = groupNameInput.value.trim();
+      if (!name) return notify('Введите название группы');
+      const checked = [...groupMembersList.querySelectorAll('input:checked')].map(i => i.value);
+      const id = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const group = { id, name, members: checked, owner: myId, created_at: Date.now() };
+      myGroups.push(group);
+      saveGroups();
+      createGroupModal.classList.remove('active');
+      buildContactsList();
+      notify('Группа создана: ' + name);
+      openGroupChat(id, name);
+
+      try {
+        await supabase.from('messages').insert({
+          chat_id: 'group_' + id,
+          sender_id: myId,
+          sender_name: myName,
+          text: '[GROUP]',
+          reply: { group_name: name, members: checked, owner: myId }
+        });
+      } catch (e) { console.warn('group sync failed', e); }
+    });
 
     updateTitle();
   </script>
