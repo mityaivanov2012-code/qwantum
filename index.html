@@ -492,6 +492,41 @@
     const SUPABASE_KEY = 'sb_publishable_-W8nObbLatdoRXTZGptqpg__8CVj0zZ';
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // --- ОТЛАДКА v3: панель логов на экране ---
+    (function initDebugPanel() {
+      const badge = document.createElement('div');
+      badge.textContent = 'v3';
+      badge.style.cssText = 'position:fixed;top:6px;left:6px;z-index:99999;background:#00e676;color:#000;font:bold 11px monospace;padding:3px 8px;border-radius:8px;';
+      document.body.appendChild(badge);
+
+      const panel = document.createElement('div');
+      panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:26vh;overflow-y:auto;background:rgba(0,0,0,.85);color:#7fff9f;font:11px/1.35 monospace;padding:6px 8px;z-index:99998;white-space:pre-wrap;word-break:break-all;';
+      const close = document.createElement('div');
+      close.textContent = 'v3 отладка — свернуть ✕';
+      close.style.cssText = 'position:fixed;bottom:0;right:0;z-index:99999;background:rgba(0,0,0,.9);color:#ffd54f;font:11px monospace;padding:3px 8px;border-radius:8px 0 0 0;cursor:pointer;';
+      close.addEventListener('click', () => { panel.remove(); close.remove(); });
+      document.body.appendChild(panel);
+      document.body.appendChild(close);
+
+      function add(kind, args) {
+        const line = document.createElement('div');
+        const parts = [];
+        for (const a of args) {
+          try { parts.push(typeof a === 'object' && a !== null ? JSON.stringify(a) : String(a)); }
+          catch (e) { parts.push('[объект]'); }
+        }
+        line.textContent = kind + ' ' + parts.join(' ');
+        panel.appendChild(line);
+        while (panel.children.length > 60) panel.removeChild(panel.firstChild);
+        panel.scrollTop = panel.scrollHeight;
+      }
+      const oLog = console.log.bind(console), oWarn = console.warn.bind(console), oErr = console.error.bind(console);
+      console.log = (...a) => { oLog(...a); add('•', a); };
+      console.warn = (...a) => { oWarn(...a); add('⚠', a); };
+      console.error = (...a) => { oErr(...a); add('⛔', a); };
+      console.log('✅ Qwantum v3 (отладочная сборка) загружена');
+    })();
+
     // --- ЗВУКИ ---
     let audioCtx = null;
     let audioUnlocked = false;
@@ -581,6 +616,8 @@
     let callSubscriptions = [];
     let currentCallRecordedId = null;
     let remoteCandidateQueue = [];
+    let sentCandidates = [];
+    let rtcChannel = null;
     let iceRestartTimeout = null;
 
     // голосовые
@@ -949,20 +986,32 @@
       }
     }
 
-    function subscribeCandidates(callId, whoId) {
-      if (candidatesChannel) supabase.removeChannel(candidatesChannel);
-      candidatesChannel = supabase.channel(`cand_${callId}_${whoId}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_candidates', filter: `chat_id=eq.${callId}` }, async payload => {
-          const c = payload.new;
-          if (c.from_user === whoId) {
-            if (pc && pc.remoteDescription) {
-              try { await pc.addIceCandidate(new RTCIceCandidate(c.candidate)); } catch (e) { console.warn('addIce', e.message); }
-            } else {
-              remoteCandidateQueue.push(c.candidate);
-            }
-          }
-        })
-        .subscribe();
+    function openRtcChannel(callId) {
+      if (rtcChannel) supabase.removeChannel(rtcChannel);
+      rtcChannel = supabase.channel(`rtc_${callId}`);
+      rtcChannel.on('broadcast', { event: 'cand' }, async (msg) => {
+        const c = msg.payload;
+        if (!c || c.from === myId) return;
+        const cand = c.candidate;
+        console.log('📥 recv cand:', ((cand && cand.candidate) || '').slice(0, 70));
+        if (pc && pc.remoteDescription) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) { console.warn('addIce', e.message); }
+        } else {
+          remoteCandidateQueue.push(cand);
+        }
+      });
+      rtcChannel.on('broadcast', { event: 'ready' }, () => {
+        console.log('📥 собеседник готов, досылаю свои кандидаты:', sentCandidates.length);
+        sentCandidates.forEach(c => {
+          rtcChannel.send({ type: 'broadcast', event: 'cand', payload: { from: myId, candidate: c } });
+        });
+      });
+      rtcChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('📡 rtc-канал готов');
+          rtcChannel.send({ type: 'broadcast', event: 'ready', payload: { from: myId } });
+        }
+      });
     }
 
     function wireConnectionState() {
@@ -1013,6 +1062,7 @@
       currentCallWith = activePrivateChatWith;
       currentCallRecordedId = null;
       remoteCandidateQueue = [];
+      sentCandidates = [];
       const otherName = chatName.textContent;
       const callId = getChatId(myId, currentCallWith);
 
@@ -1025,11 +1075,15 @@
       }
 
       wireConnectionState();
+      openRtcChannel(callId);
       localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           console.log('📤 send cand:', e.candidate.type || 'host');
-          supabase.from('call_candidates').insert({ chat_id: callId, from_user: myId, candidate: e.candidate.toJSON() }).then();
+          sentCandidates.push(e.candidate.toJSON());
+          if (rtcChannel && rtcChannel.state === 'joined') {
+            rtcChannel.send({ type: 'broadcast', event: 'cand', payload: { from: myId, candidate: e.candidate.toJSON() } });
+          }
         }
       };
       pc.ontrack = (e) => setupRemoteAudio(e.streams[0]);
@@ -1051,7 +1105,7 @@
           console.warn('🔄 ICE restart timeout');
           try { pc.restartIce(); } catch(e){}
         }
-      }, 5000);
+      }, 20000);
     });
 
     function listenForAnswer(callId) {
@@ -1077,7 +1131,6 @@
             try {
               await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
               await flushRemoteCandidates();
-              subscribeCandidates(callId, currentCallWith);
               activeStatus.textContent = 'Соединение...';
             } catch (err) { console.error(err); }
           }
@@ -1112,6 +1165,7 @@
       if (remoteAudio) remoteAudio.srcObject = null;
       if (callsChannel) { supabase.removeChannel(callsChannel); callsChannel = null; }
       if (candidatesChannel) { supabase.removeChannel(candidatesChannel); candidatesChannel = null; }
+      if (rtcChannel) { supabase.removeChannel(rtcChannel); rtcChannel = null; }
       activeCallDiv.classList.remove('active');
       incomingCallDiv.classList.remove('active');
       currentCallWith = null;
@@ -1119,6 +1173,7 @@
       isMuted = false;
       callStartTime = null;
       remoteCandidateQueue = [];
+      sentCandidates = [];
       muteCallBtn.classList.remove('muted');
       muteCallBtn.innerHTML = '<i class="fas fa-microphone"></i>';
       if (incomingCallWatcher) { try { incomingCallWatcher(); } catch(e){} incomingCallWatcher = null; }
@@ -1196,6 +1251,7 @@
       currentCallWith = incomingCallData.caller_id;
       currentCallRecordedId = null;
       remoteCandidateQueue = [];
+      sentCandidates = [];
       const callId = incomingCallData.callId;
       const callerId = incomingCallData.caller_id;
 
@@ -1209,18 +1265,21 @@
       }
 
       wireConnectionState();
+      openRtcChannel(callId);
       localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           console.log('📤 send cand (callee):', e.candidate.type || 'host');
-          supabase.from('call_candidates').insert({ chat_id: callId, from_user: myId, candidate: e.candidate.toJSON() }).then();
+          sentCandidates.push(e.candidate.toJSON());
+          if (rtcChannel && rtcChannel.state === 'joined') {
+            rtcChannel.send({ type: 'broadcast', event: 'cand', payload: { from: myId, candidate: e.candidate.toJSON() } });
+          }
         }
       };
       pc.ontrack = (e) => setupRemoteAudio(e.streams[0]);
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(incomingCallData.offer));
-        subscribeCandidates(callId, callerId);
         await flushRemoteCandidates();
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
