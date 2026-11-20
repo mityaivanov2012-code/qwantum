@@ -77,10 +77,8 @@ border: 1px solid rgba(255,255,255,0.03);
 .edit-name-btn:hover { color: var(--accent); }
 .user-id-small { font-size: 11px; color: #a0b2e5; font-family: monospace; white-space: nowrap; }
 .logout-btn { background: none; border: none; color: #d0daff; font-size: 22px; padding: 8px; cursor: pointer; flex-shrink: 0; }
-.search-section { display: none !important; }
 .contacts-section { flex: 1; overflow-y: auto; padding: 8px 12px 12px; }
 .section-title { display: flex; justify-content: space-between; align-items: center; color: #d8e2ff; font-weight: 600; font-size: 16px; margin-bottom: 12px; }
-.section-actions { display: flex; gap: 8px; }
 .contacts-list { display: flex; flex-direction: column; gap: 6px; }
 .empty-contacts { color: #7f90cf; font-size: 13px; text-align: center; padding: 20px 10px; line-height: 1.5; }
 .contact-item { display: flex; align-items: center; padding: 10px 14px; background: rgba(28, 36, 65, 0.6); border-radius: 50px; border: 1px solid transparent; transition: 0.15s; cursor: pointer; }
@@ -92,58 +90,25 @@ border: 1px solid rgba(255,255,255,0.03);
 .contact-name { font-weight: 600; color: white; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .contact-id { font-size: 11px; color: #a5b6ed; font-family: monospace; }
 .unread-badge { background: var(--success); color: #000; font-weight: 800; min-width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 11px; padding: 0 6px; margin-left: 8px; flex-shrink: 0; }
-.bottom-bar {
-display: flex; gap: 10px; align-items: center;
-padding: 12px 14px; border-top: 1px solid #28305a;
-background: rgba(0,0,0,0.25); flex-shrink: 0;
-}
+.bottom-bar { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-top: 1px solid #28305a; background: rgba(0,0,0,0.25); flex-shrink: 0; }
 .bottom-bar .search-box { position: relative; flex: 1; }
-.bottom-bar .search-icon {
-position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
-color: #7a89c0; font-size: 14px; pointer-events: none;
-}
-.bottom-bar .search-input {
-width: 100%; background: #151e42; border: 1px solid #33407a; border-radius: 60px;
-padding: 12px 18px 12px 40px; color: white; font-size: 15px;
-}
+.bottom-bar .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #7a89c0; font-size: 14px; pointer-events: none; }
+.bottom-bar .search-input { width: 100%; background: #151e42; border: 1px solid #33407a; border-radius: 60px; padding: 12px 18px 12px 40px; color: white; font-size: 15px; }
 .bottom-bar .search-input::placeholder { color: #7a89c0; }
-.bottom-bar .new-chat-btn {
-width: 44px; height: 44px; border-radius: 50%;
-background: var(--accent); border: none; color: white; font-size: 20px;
-box-shadow: 0 4px 15px #00b0ff; cursor: pointer;
-display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
+.bottom-bar .new-chat-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); border: none; color: white; font-size: 20px; box-shadow: 0 4px 15px #00b0ff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .actions-menu { display: none; position: fixed; inset: 0; z-index: 4000; }
 .actions-menu.active { display: block; }
 .actions-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
-.actions-sheet {
-position: absolute; bottom: 0; left: 0; right: 0;
-background: #141e42; border-radius: 24px 24px 0 0;
-padding: 16px; display: flex; flex-direction: column; gap: 8px;
-border-top: 1px solid #4f6ac0; animation: sheet-up 0.2s ease;
-}
+.actions-sheet { position: absolute; bottom: 0; left: 0; right: 0; background: #141e42; border-radius: 24px 24px 0 0; padding: 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #4f6ac0; animation: sheet-up 0.2s ease; }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.action-item {
-width: 100%; padding: 16px; border: none; border-radius: 16px;
-background: #2c3568; color: white; font-size: 16px; font-weight: 600;
-display: flex; align-items: center; gap: 12px; cursor: pointer; text-align: left;
-}
+.action-item { width: 100%; padding: 16px; border: none; border-radius: 16px; background: #2c3568; color: white; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 12px; cursor: pointer; text-align: left; }
 .action-item i { width: 22px; text-align: center; color: var(--accent); }
 .action-item.cancel { background: transparent; color: #9aabdd; justify-content: center; }
-.simple-modal {
-display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
-z-index: 4500; align-items: center; justify-content: center; backdrop-filter: blur(8px); padding: 16px;
-}
+.simple-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 4500; align-items: center; justify-content: center; backdrop-filter: blur(8px); padding: 16px; }
 .simple-modal.active { display: flex; }
 .simple-modal .modal-content { max-width: 420px; width: 100%; }
-.group-members-list {
-max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
-background: rgba(0,0,0,0.3); border-radius: 12px; padding: 8px;
-}
-.group-member-row {
-display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-border-radius: 8px; cursor: pointer;
-}
+.group-members-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 8px; }
+.group-member-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
 .group-member-row:hover { background: rgba(255,255,255,0.05); }
 .group-member-row input { accent-color: var(--accent); }
 .group-member-row .gm-name { color: white; font-size: 14px; flex: 1; }
@@ -178,14 +143,8 @@ border-radius: 8px; cursor: pointer;
 #pinned-banner .pin-close { background: none; border: none; color: #9aabdd; font-size: 18px; cursor: pointer; padding: 4px 8px; }
 #pinned-banner .pin-close:hover { color: #fff; }
 .messages-container { flex: 1; overflow-y: auto; padding: 20px 20px 10px; display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.2); }
-.load-more-indicator {
-align-self: center; padding: 10px 20px; color: #9aabdd; font-size: 13px;
-display: flex; align-items: center; gap: 8px;
-}
-.load-more-indicator .spinner {
-width: 16px; height: 16px; border: 2px solid #33407a; border-top-color: var(--accent);
-border-radius: 50%; animation: spin 0.8s linear infinite;
-}
+.load-more-indicator { align-self: center; padding: 10px 20px; color: #9aabdd; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.load-more-indicator .spinner { width: 16px; height: 16px; border: 2px solid #33407a; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .date-divider { align-self: center; background: rgba(0,176,255,0.15); color: #a0d0ff; font-size: 12px; padding: 6px 16px; border-radius: 20px; margin: 8px 0; border: 1px solid rgba(0,176,255,0.3); }
 .message { max-width: 70%; padding: 12px 20px; border-radius: 28px; font-size: 15px; line-height: 1.4; word-wrap: break-word; box-shadow: 0 4px 15px rgba(0,0,0,0.4); position: relative; transition: 0.2s; }
@@ -275,20 +234,9 @@ border-radius: 50%; animation: spin 0.8s linear infinite;
 .call-action-btn:hover { transform: scale(1.1); }
 .call-action-btn.muted { background: #ff4d4d; }
 .notification { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: #1a2350; color: white; padding: 16px 32px; border-radius: 60px; font-size: 17px; display: flex; align-items: center; gap: 12px; box-shadow: 0 15px 40px black; border: 1px solid #5f7ae0; z-index: 20000; backdrop-filter: blur(25px); text-align: center; max-width: 90%; }
-.upload-progress {
-position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
-background: #1a2350; color: white; padding: 14px 24px; border-radius: 20px;
-font-size: 14px; display: flex; align-items: center; gap: 12px;
-box-shadow: 0 10px 30px black; border: 1px solid #5f7ae0; z-index: 20000;
-backdrop-filter: blur(25px); min-width: 280px; max-width: 90%;
-}
-.upload-progress-bar {
-flex: 1; height: 6px; background: #2c3568; border-radius: 3px; overflow: hidden;
-}
-.upload-progress-fill {
-height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-glow));
-width: 0%; transition: width 0.2s; border-radius: 3px;
-}
+.upload-progress { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #1a2350; color: white; padding: 14px 24px; border-radius: 20px; font-size: 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px black; border: 1px solid #5f7ae0; z-index: 20000; backdrop-filter: blur(25px); min-width: 280px; max-width: 90%; }
+.upload-progress-bar { flex: 1; height: 6px; background: #2c3568; border-radius: 3px; overflow: hidden; }
+.upload-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-glow)); width: 0%; transition: width 0.2s; border-radius: 3px; }
 @media (max-width: 768px) {
 body { padding: 0; }
 .app-container { border-radius: 0; max-height: none; height: 100vh; height: 100dvh; }
@@ -363,7 +311,7 @@ body { padding: 0; }
 <input type="text" id="registerName" class="form-input" placeholder="Как вас зовут" maxlength="15">
 </div>
 <div class="form-group">
-<label class="form-label"><i class="fas fa-lock"></i> Пароль (только цифры)</label>
+<label class="form-label"><i class="fas fa-lock"></i> Пароль</label>
 <div class="password-container">
 <input type="password" id="registerPassword" class="form-input" placeholder="••••••">
 <button class="toggle-password" id="toggleRegisterPassword"><i class="fas fa-eye"></i></button>
@@ -398,9 +346,7 @@ body { padding: 0; }
 </div>
 </div>
 <div class="contacts-section" id="contactsSection">
-<div class="section-title">
-<span>💬 Контакты</span>
-</div>
+<div class="section-title"><span>💬 Контакты</span></div>
 <div class="contacts-list" id="contactsList"></div>
 </div>
 <div class="bottom-bar">
@@ -1333,7 +1279,6 @@ localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 }
 buildContactsList();
 
-// отметаем прочитанным чужое сообщение в текущем открытом чате
 if (msg.sender_id !== myId) {
 const isCurrent = (currentRoom === 'general' && msg.chat_id === 'general') ||
 (currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith)) ||
@@ -1370,14 +1315,12 @@ ed.textContent = 'изм.';
 timeEl.insertBefore(ed, timeEl.firstChild);
 }
 }
-// обновление статуса
 if (msg.status) {
 const statusEl = el.querySelector('.msg-status');
 if (statusEl) updateStatusIcon(statusEl, msg.status);
 }
 }
 }
-// если это обновление статуса для наших сообщений в других чатах — тоже обновим
 if (msg.sender_id === myId && msg.status) {
 const el = document.getElementById(`msg-${msg.id}`);
 if (el) {
@@ -1430,7 +1373,6 @@ div.textContent = formatDate(new Date(msg.created_at).getTime());
 messagesContainer.appendChild(div);
 }
 renderMessage(msg, isPrivate, msg.chat_id, false);
-// отметим прочитанным, если чужое и мы в этом чате
 if (msg.sender_id !== myId && isWindowFocused) {
 markMessagesRead([msg.id]);
 }
@@ -1493,8 +1435,7 @@ const nameInput = registerName.value.trim();
 const passInput = registerPassword.value.trim();
 if (!nameInput) return notify('Введите имя');
 if (nameInput.length < 2) return notify('Имя минимум 2 символа');
-if (!/^\d+$/.test(passInput)) return notify('Пароль только из цифр');
-if (passInput.length < 4) return notify('Пароль минимум 4 цифры');
+if (passInput.length < 4) return notify('Пароль минимум 4 символа');
 const originalHtml = registerBtn.innerHTML;
 registerBtn.disabled = true;
 registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Создание...';
@@ -1697,7 +1638,6 @@ async function loadMoreMessages() {
 if (isLoadingMore || !hasMoreMessages) return;
 isLoadingMore = true;
 
-// индикатор загрузки сверху
 let indicator = messagesContainer.querySelector('.load-more-indicator');
 if (!indicator) {
 indicator = document.createElement('div');
@@ -1731,17 +1671,7 @@ hasMoreMessages = false;
 
 if (data && data.length > 0) {
 const sorted = [...data].reverse();
-const firstWasDateDivider = messagesContainer.firstChild && messagesContainer.firstChild.classList.contains('date-divider');
-
-// нужно временно сбросить lastRenderedDate, чтобы правильно вставить разделители дат
-// но только для старых сообщений — сохраним текущий
 const savedLastDate = lastRenderedDate;
-// найдём самое старое уже отрендеренное сообщение, чтобы правильно ставить разделители
-const firstRendered = messagesContainer.querySelector('.message');
-if (firstRendered) {
-const firstMsgId = firstRendered.id.replace('msg-', '');
-// не трогаем lastRenderedDate — разделители для старых сообщений поставим сами
-}
 
 sorted.forEach(msg => {
 if (msg.text === '[GROUP]') return;
@@ -1753,7 +1683,6 @@ const d = new Date(msg.created_at);
 return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
 })();
 
-// проверим, есть ли уже такой разделитель
 const existingDividers = messagesContainer.querySelectorAll('.date-divider');
 let needDivider = true;
 for (const d of existingDividers) {
@@ -1771,7 +1700,6 @@ renderMessage(msg, isPrivate, chatId, true);
 
 lastRenderedDate = savedLastDate;
 
-// сохраняем позицию скролла
 const newHeight = messagesContainer.scrollHeight;
 messagesContainer.scrollTop = previousTop + (newHeight - previousHeight);
 
@@ -1853,7 +1781,6 @@ loadMessages(storageKey, true);
 loadPinned(storageKey);
 attachScrollListener();
 
-// отметим все непрочитанные как прочитанные
 markAllReadInChat(storageKey);
 }
 function openGroupChat(groupId, groupName) {
@@ -2036,7 +1963,6 @@ const timeSpan = document.createElement('span');
 timeSpan.textContent = formatTime(new Date(data.created_at).getTime());
 metaEl.appendChild(timeSpan);
 
-// статус для исходящих
 if (isMe) {
 const statusEl = document.createElement('span');
 updateStatusIcon(statusEl, data.status || 'sent');
@@ -2072,7 +1998,7 @@ if (prepend) {
 messagesContainer.insertBefore(wrapper, messagesContainer.querySelector('.message') || messagesContainer.firstChild);
 } else {
 messagesContainer.appendChild(wrapper);
-if (!prepend) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 }
 function openActionMenu(data, isMe) {
@@ -2286,7 +2212,6 @@ recordingBar.classList.remove('active');
 recTimeEl.textContent = '00:00';
 }
 
-// прогресс загрузки файла
 function showUploadProgress(fileName, percent) {
 let bar = document.querySelector('.upload-progress');
 if (!bar) {
@@ -2316,7 +2241,6 @@ const nameToUse = file.name || ('file_' + Date.now());
 const ext = nameToUse.split('.').pop() || 'bin';
 const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
 
-// используем fetch с отслеживанием прогресса через XHR
 return new Promise((resolve, reject) => {
 const url = `${SUPABASE_URL}/storage/v1/object/qwantum-files/${fileName}`;
 const xhr = new XMLHttpRequest();
@@ -2344,15 +2268,6 @@ xhr.send(file);
 });
 }
 
-async function uploadFile(file) {
-const nameToUse = file.name || ('file_' + Date.now());
-const ext = nameToUse.split('.').pop() || 'bin';
-const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-const { data, error } = await supabase.storage.from('qwantum-files').upload(fileName, file);
-if (error) throw error;
-const { data: publicUrlData } = supabase.storage.from('qwantum-files').getPublicUrl(fileName);
-return publicUrlData.publicUrl;
-}
 async function sendVoiceBlob(blob, duration) {
 if (!currentRoom) return;
 showUploadProgress('Голосовое сообщение', 0);
@@ -2590,7 +2505,6 @@ reply: { group_name: name, members: checked, owner: myId }
 } catch (e) { console.warn('group sync failed', e); }
 });
 
-// отметка прочитанного
 async function markMessagesRead(ids) {
 if (!ids || ids.length === 0) return;
 try {
@@ -2600,7 +2514,6 @@ await supabase.from('messages').update({ status: 'read' }).in('id', ids);
 
 async function markAllReadInChat(chatId) {
 try {
-// найдём все непрочитанные входящие в этом чате
 const { data } = await supabase.from('messages')
 .select('id')
 .eq('chat_id', chatId)
@@ -2609,7 +2522,6 @@ const { data } = await supabase.from('messages')
 if (data && data.length > 0) {
 const ids = data.map(m => m.id);
 await supabase.from('messages').update({ status: 'read' }).in('id', ids);
-// обновим иконки локально
 ids.forEach(id => {
 const el = document.getElementById(`msg-${id}`);
 if (el) {
