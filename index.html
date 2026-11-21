@@ -199,7 +199,12 @@ border-radius: 50%; animation: spin 0.8s linear infinite;
 .msg-status.sent { color: #9aabdd; }
 .msg-status.delivered { color: #9aabdd; }
 .msg-status.read { color: #00e676; }
-.msg-name { font-size: 12px; color: #a5b7f0; margin-bottom: 4px; font-weight: bold; }
+.msg-name { font-size: 12px; color: #a5b7f0; margin-bottom: 4px; font-weight: bold; display: flex; align-items: center; gap: 6px; }
+.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.profile-avatar-big { position: relative; overflow: hidden; cursor: pointer; }
+.call-avatar { position: relative; overflow: hidden; }
+.msg-avatar { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.contact-avatar .status-dot, .chat-avatar .status-dot, .user-avatar .status-dot { z-index: 2; }
 .msg-edited { font-size: 10px; color: #a0d0ff; margin-left: 4px; font-style: italic; }
 .reply-quote { background: rgba(0,0,0,0.25); border-left: 3px solid var(--accent); padding: 5px 8px; margin-bottom: 6px; border-radius: 4px; font-size: 13px; color: #c0d0ff; }
 .reply-quote .quote-name { font-weight: bold; color: var(--accent); display: block; font-size: 11px; }
@@ -518,9 +523,11 @@ body { padding: 0; }
 <div class="profile-id-big" id="profile-id-big">ID: 000000000</div>
 <button class="modal-btn add" id="profile-add" style="display:none;"><i class="fas fa-user-plus"></i> Добавить контакт</button>
 <button class="modal-btn remove" id="profile-remove" style="display:none;"><i class="fas fa-user-minus"></i> Удалить из контактов</button>
+<button class="modal-btn cancel" id="profile-change-avatar" style="display:none;"><i class="fas fa-camera"></i> Сменить аватар</button>
 <button class="modal-btn cancel" id="profile-close">Закрыть</button>
 </div>
 </div>
+<input type="file" id="avatar-input" accept="image/*" style="display:none">
 <div id="history-modal">
 <div class="modal-content">
 <h3><i class="fas fa-clock-rotate-left"></i> История звонков</h3>
@@ -726,6 +733,32 @@ const profileIdBig = document.getElementById('profile-id-big');
 const profileAddBtn = document.getElementById('profile-add');
 const profileRemoveBtn = document.getElementById('profile-remove');
 const profileCloseBtn = document.getElementById('profile-close');
+const profileChangeAvatarBtn = document.getElementById('profile-change-avatar');
+const avatarInput = document.getElementById('avatar-input');
+let myAvatarUrl = null;
+profileChangeAvatarBtn.addEventListener('click', () => avatarInput.click());
+avatarInput.addEventListener('change', async () => {
+const file = avatarInput.files && avatarInput.files[0];
+avatarInput.value = '';
+if (!file) return;
+if (!file.type.startsWith('image/')) return notify('Выберите изображение');
+try {
+const dataUrl = await resizeImageFile(file);
+const { error } = await supabase.from('users').update({ avatar_url: dataUrl }).eq('id', myId);
+if (error) {
+if (/column|avatar_url/i.test(error.message || '')) notify('Нет колонки avatar_url в таблице users (text)');
+else throw error;
+return;
+}
+myAvatarUrl = dataUrl;
+if (allUsers[myId]) allUsers[myId].avatar_url = dataUrl;
+applyAvatarEverywhere();
+notify('Аватар обновлён');
+} catch (e) {
+console.error(e);
+notify('Не удалось загрузить аватар: ' + (e.message || ''));
+}
+});
 let profileTargetId = null;
 let profileTargetName = null;
 const historyModal = document.getElementById('history-modal');
@@ -757,6 +790,50 @@ function getAvatarColor(name) {
 let hash = 0;
 for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
 return `hsl(${hash % 360}, 70%, 50%)`;
+}
+function avatarInner(url, letter) {
+return url ? `<img class="avatar-img" src="${url}" alt="">` : letter;
+}
+function setAvatarElement(el, url, letter, dotHtml) {
+el.innerHTML = (url ? `<img class="avatar-img" src="${url}" alt="">` : letter) + (dotHtml || '');
+}
+function applyAvatarEverywhere() {
+if (myName) setAvatarElement(userAvatar, myAvatarUrl, myName.charAt(0).toUpperCase());
+buildContactsList();
+if (activePrivateChatWith) {
+const pu = allUsers[activePrivateChatWith];
+const nm = pu ? pu.name : 'ID ' + activePrivateChatWith;
+setAvatarElement(chatAvatar, pu && pu.avatar_url, nm.charAt(0).toUpperCase(), onlineUsers.has(activePrivateChatWith) ? '<div class="status-dot"></div>' : '');
+}
+if (profileTargetId) {
+const pu = allUsers[profileTargetId];
+setAvatarElement(profileAvatarBig, pu && pu.avatar_url, (pu ? pu.name : profileTargetName).charAt(0).toUpperCase());
+}
+document.querySelectorAll('.msg-avatar').forEach(img => {
+const u = allUsers[img.dataset.uid];
+if (u && u.avatar_url) img.src = u.avatar_url;
+});
+}
+async function resizeImageFile(file) {
+const dataUrl = await new Promise((res, rej) => {
+const r = new FileReader();
+r.onload = () => res(r.result);
+r.onerror = rej;
+r.readAsDataURL(file);
+});
+const img = await new Promise((res, rej) => {
+const i = new Image();
+i.onload = () => res(i);
+i.onerror = rej;
+i.src = dataUrl;
+});
+const max = 256;
+let w = img.width, h = img.height;
+if (w > h) { h = Math.round(h * max / w); w = max; } else { w = Math.round(w * max / h); h = max; }
+const canvas = document.createElement('canvas');
+canvas.width = w; canvas.height = h;
+canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+return canvas.toDataURL('image/jpeg', 0.82);
 }
 function formatTime(timestamp) {
 if (!timestamp) return '';
@@ -835,8 +912,8 @@ await presenceChannel.track({ online_at: new Date().toISOString() });
 function showUserProfile(uid, name) {
 profileTargetId = uid;
 profileTargetName = name;
-profileAvatarBig.textContent = name.charAt(0).toUpperCase();
-profileAvatarBig.style.background = getAvatarColor(name);
+const avU = allUsers[uid];
+setAvatarElement(profileAvatarBig, avU && avU.avatar_url, name.charAt(0).toUpperCase());
 profileNameBig.textContent = displayNameFor(uid, name);
 profileIdBig.textContent = 'ID: ' + uid;
 const isSelf = uid === myId;
@@ -850,6 +927,7 @@ profileRemoveBtn.style.display = 'block';
 profileAddBtn.style.display = 'block';
 profileRemoveBtn.style.display = 'none';
 }
+profileChangeAvatarBtn.style.display = isSelf ? 'block' : 'none';
 profileModal.classList.add('active');
 }
 profileAddBtn.addEventListener('click', async () => {
@@ -1072,7 +1150,7 @@ chat_id: callId, caller_id: myId, caller_name: myName,
 callee_id: currentCallWith, callee_name: otherName,
 offer: { type: offer.type, sdp: offer.sdp }, status: 'ringing'
 });
-showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...');
+showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...', allUsers[currentCallWith] && allUsers[currentCallWith].avatar_url);
 listenForAnswer(callId);
 subscribeCandidates(callId, currentCallWith);
 iceRestartTimeout = setTimeout(() => {
@@ -1112,10 +1190,9 @@ activeStatus.textContent = 'Соединение...';
 })
 .subscribe();
 }
-function showActiveCall(name, color, status) {
+function showActiveCall(name, color, status, avUrl) {
 activeCallDiv.classList.add('active');
-activeAvatar.textContent = name.charAt(0).toUpperCase();
-activeAvatar.style.background = color;
+setAvatarElement(activeAvatar, avUrl, name.charAt(0).toUpperCase());
 activeName.textContent = name;
 activeStatus.textContent = status;
 callTimerEl.textContent = '00:00';
@@ -1166,8 +1243,8 @@ if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
 const call = payload.new;
 if (call.callee_id === myId && call.status === 'ringing' && !incomingCallDiv.classList.contains('active') && !pc) {
 incomingCallData = { callId: call.chat_id, ...call };
-incomingAvatar.textContent = call.caller_name.charAt(0).toUpperCase();
-incomingAvatar.style.background = getAvatarColor(call.caller_name);
+const ic = allUsers[call.caller_id];
+setAvatarElement(incomingAvatar, ic && ic.avatar_url, call.caller_name.charAt(0).toUpperCase());
 incomingName.textContent = call.caller_name;
 incomingStatus.textContent = 'Входящий аудиозвонок...';
 incomingCallDiv.classList.add('active');
@@ -1252,7 +1329,7 @@ notify('Ошибка установки соединения: ' + err.message);
 endCall(false);
 return;
 }
-showActiveCall(incomingCallData.caller_name, getAvatarColor(incomingCallData.caller_name), 'Соединение...');
+showActiveCall(incomingCallData.caller_name, getAvatarColor(incomingCallData.caller_name), 'Соединение...', (allUsers[incomingCallData.caller_id] && allUsers[incomingCallData.caller_id].avatar_url));
 if (callsChannel) supabase.removeChannel(callsChannel);
 callsChannel = supabase.channel(`call_${callId}`)
 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `chat_id=eq.${callId}` }, (payload) => {
@@ -1434,7 +1511,8 @@ async function loadAllUsers() {
 const { data } = await supabase.from('users').select('*');
 allUsers = {};
 if (data) data.forEach(u => allUsers[u.id] = u);
-buildContactsList();
+myAvatarUrl = (allUsers[myId] && allUsers[myId].avatar_url) || null;
+applyAvatarEverywhere();
 if (activePrivateChatWith) {
 const online = onlineUsers.has(activePrivateChatWith);
 chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
@@ -1452,8 +1530,7 @@ function showApp() {
 authPage.classList.add('hidden');
 messengerInterface.classList.remove('hidden');
 userNameSpan.textContent = myName;
-userAvatar.textContent = myName.charAt(0).toUpperCase();
-userAvatar.style.background = getAvatarColor(myName);
+setAvatarElement(userAvatar, myAvatarUrl, myName.charAt(0).toUpperCase());
 userSidebarId.textContent = myId;
 userAvatar.addEventListener('click', () => showUserProfile(myId, myName));
 userNameSpan.addEventListener('click', () => showUserProfile(myId, myName));
@@ -1595,8 +1672,7 @@ if (existing && existing.length > 0) return notify('Это имя уже зан�
 myName = trimmed;
 localStorage.setItem('qwantum_myName', myName);
 userNameSpan.textContent = myName;
-userAvatar.textContent = myName.charAt(0).toUpperCase();
-userAvatar.style.background = getAvatarColor(myName);
+setAvatarElement(userAvatar, myAvatarUrl, myName.charAt(0).toUpperCase());
 await supabase.from('users').update({ name: myName }).eq('id', myId);
 notify('Имя изменено');
 }
@@ -1670,7 +1746,8 @@ sub = item.lastTime ? formatTime(item.lastTime) : 'для всех';
 avatar = `<div class="contact-avatar group-avatar"><i class="fas fa-users"></i></div>`;
 sub = 'Группа';
 } else {
-avatar = `<div class="contact-avatar" style="background:${getAvatarColor(item.name)}">${item.name[0].toUpperCase()}${item.online ? '<div class="status-dot"></div>' : ''}</div>`;
+const cu = allUsers[item.uid];
+avatar = `<div class="contact-avatar" style="background:${getAvatarColor(item.name)}">${avatarInner(cu && cu.avatar_url, item.name[0].toUpperCase())}${item.online ? '<div class="status-dot"></div>' : ''}</div>`;
 sub = `ID: ${item.uid}${item.online ? ' · в сети' : ''}`;
 }
 el.innerHTML = `
@@ -1783,7 +1860,17 @@ if (currentPinned && currentPinned.message_id === data.id) wrapper.classList.add
 if (!isMe) {
 const nameEl = document.createElement('div');
 nameEl.className = 'msg-name';
-nameEl.textContent = data.sender_name;
+const su = allUsers[data.sender_id];
+if (su && su.avatar_url) {
+const sav = document.createElement('img');
+sav.className = 'msg-avatar';
+sav.src = su.avatar_url;
+sav.dataset.uid = data.sender_id;
+nameEl.appendChild(sav);
+}
+const nmSpan = document.createElement('span');
+nmSpan.textContent = data.sender_name;
+nameEl.appendChild(nmSpan);
 wrapper.appendChild(nameEl);
 }
 if (data.reply) {
@@ -1925,9 +2012,8 @@ pinnedBanner.classList.remove('active');
 chatName.textContent = otherName;
 const online = onlineUsers.has(otherId);
 chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
-chatAvatar.textContent = otherName.charAt(0).toUpperCase();
-chatAvatar.style.background = getAvatarColor(otherName);
-chatAvatar.innerHTML = `${otherName.charAt(0).toUpperCase()}${online ? '<div class="status-dot"></div>' : ''}`;
+const oc = allUsers[otherId];
+setAvatarElement(chatAvatar, oc && oc.avatar_url, otherName.charAt(0).toUpperCase(), online ? '<div class="status-dot"></div>' : '');
 chatAvatar.onclick = () => showUserProfile(otherId, otherName);
 chatName.onclick = () => showUserProfile(otherId, otherName);
 callBtn.style.display = 'flex';
