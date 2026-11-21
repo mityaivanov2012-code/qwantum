@@ -363,7 +363,7 @@ body { padding: 0; }
 <input type="text" id="registerName" class="form-input" placeholder="Как вас зовут" maxlength="15">
 </div>
 <div class="form-group">
-<label class="form-label"><i class="fas fa-lock"></i> Пароль</label>
+<label class="form-label"><i class="fas fa-lock"></i> Пароль (буквы и цифры, 6+)</label>
 <div class="password-container">
 <input type="password" id="registerPassword" class="form-input" placeholder="••••••">
 <button class="toggle-password" id="toggleRegisterPassword"><i class="fas fa-eye"></i></button>
@@ -626,7 +626,6 @@ let currentPinned = null;
 let contactAliases = JSON.parse(localStorage.getItem('qwantum_aliases') || '{}');
 let myGroups = JSON.parse(localStorage.getItem('qwantum_groups') || '[]');
 let contactsFilterText = '';
-// пагинация сообщений
 let messagesOffset = 0;
 let isLoadingMore = false;
 let hasMoreMessages = true;
@@ -746,7 +745,13 @@ const activeStatus = document.getElementById('active-status');
 const muteCallBtn = document.getElementById('mute-call-btn');
 const endCallBtn = document.getElementById('end-call-btn');
 const remoteAudio = document.getElementById('remote-audio');
-window.addEventListener('focus', () => { isWindowFocused = true; });
+window.addEventListener('focus', () => {
+isWindowFocused = true;
+if (currentRoom) {
+const chatId = currentRoom === 'general' ? 'general' : currentRoom;
+markAllReadInChat(chatId);
+}
+});
 window.addEventListener('blur', () => { isWindowFocused = false; });
 function getAvatarColor(name) {
 let hash = 0;
@@ -782,6 +787,7 @@ let hash = 0;
 for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash) + str.charCodeAt(i);
 return (hash |= 0).toString(16);
 }
+function hashPassword(id, password) { return simpleHash(String(id) + ':' + password); }
 function notify(msg) {
 notifText.innerText = msg;
 notif.classList.remove('hidden');
@@ -1328,15 +1334,17 @@ chatLastTimes[chatKey] = lastTime;
 localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 }
 buildContactsList();
-// отметаем прочитанным чужое сообщение в текущем открытом чате
-if (msg.sender_id !== myId) {
+}
+// delivered: помечаем доставленным, если сообщение не наше и мы онлайн
+if (msg.sender_id !== myId && msg.status === 'sent') {
+supabase.from('messages').update({ status: 'delivered' }).eq('id', msg.id).then();
+}
+// read: если чат открыт и в фокусе — сразу читаем
+if (msg.sender_id !== myId && isWindowFocused) {
 const isCurrent = (currentRoom === 'general' && msg.chat_id === 'general') ||
 (currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith)) ||
 (currentRoom && currentRoom.startsWith('group_') && msg.chat_id === currentRoom);
-if (isCurrent && isWindowFocused) {
-markMessagesRead([msg.id]);
-}
-}
+if (isCurrent) markMessagesRead([msg.id]);
 }
 const isCurrentGeneral = currentRoom === 'general' && msg.chat_id === 'general';
 const isCurrentPrivate = currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith);
@@ -1347,10 +1355,6 @@ appendMessageLive(msg, currentRoom.startsWith('private_'));
 })
 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
 const msg = payload.new;
-const isCurrent = (currentRoom === 'general' && msg.chat_id === 'general') ||
-(currentRoom && currentRoom.startsWith('private_') && msg.chat_id === getChatId(myId, activePrivateChatWith)) ||
-(currentRoom && currentRoom.startsWith('group_') && msg.chat_id === currentRoom);
-if (isCurrent) {
 const el = document.getElementById(`msg-${msg.id}`);
 if (el) {
 const textEl = el.querySelector('.msg-text');
@@ -1365,17 +1369,7 @@ ed.textContent = 'изм.';
 timeEl.insertBefore(ed, timeEl.firstChild);
 }
 }
-// обновление статуса
 if (msg.status) {
-const statusEl = el.querySelector('.msg-status');
-if (statusEl) updateStatusIcon(statusEl, msg.status);
-}
-}
-}
-// если это обновление статуса для наших сообщений в других чатах — тоже обновим
-if (msg.sender_id === myId && msg.status) {
-const el = document.getElementById(`msg-${msg.id}`);
-if (el) {
 const statusEl = el.querySelector('.msg-status');
 if (statusEl) updateStatusIcon(statusEl, msg.status);
 }
@@ -1421,11 +1415,11 @@ if (dayKey !== lastRenderedDate) {
 lastRenderedDate = dayKey;
 const div = document.createElement('div');
 div.className = 'date-divider';
+div.dataset.dayKey = dayKey;
 div.textContent = formatDate(new Date(msg.created_at).getTime());
 messagesContainer.appendChild(div);
 }
 renderMessage(msg, isPrivate, msg.chat_id, false);
-// отметим прочитанным, если чужое и мы в этом чате
 if (msg.sender_id !== myId && isWindowFocused) {
 markMessagesRead([msg.id]);
 }
@@ -1485,26 +1479,18 @@ else { authPage.classList.remove('hidden'); messengerInterface.classList.add('hi
 registerBtn.addEventListener('click', async () => {
 if (registerBtn.disabled) return;
 const nameInput = registerName.value.trim();
-const passInput = registerPassword.value.trim();
+const passInput = registerPassword.value;
 if (!nameInput) return notify('Введите имя');
 if (nameInput.length < 2) return notify('Имя минимум 2 символа');
-if (!passInput) return notify('Введите пароль');
-if (passInput.length < 4) return notify('Пароль минимум 4 символа');
+if (nameInput.length > 15) return notify('Имя максимум 15 символов');
+if (passInput.length < 6) return notify('Пароль минимум 6 символов');
+if (!/[a-zA-Zа-яА-Я]/.test(passInput) || !/\d/.test(passInput)) return notify('Пароль должен содержать буквы и цифры');
 const originalHtml = registerBtn.innerHTML;
 registerBtn.disabled = true;
 registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Создание...';
 try {
-const passHash = simpleHash(passInput);
-// Проверяем уникальность имени через точное совпадение вместо ilike
-const { data: existing, error: nameErr } = await supabase
-.from('users')
-.select('id')
-.eq('name', nameInput)
-.limit(1);
-if (nameErr) {
-console.error('Ошибка проверки имени:', nameErr);
-throw new Error('Сервер недоступен');
-}
+const { data: existing, error: nameErr } = await supabase.from('users').select('id').ilike('name', nameInput).limit(1);
+if (nameErr) throw new Error('Сервер недоступен: ' + nameErr.message);
 if (existing && existing.length > 0) throw new Error('Это имя уже занято');
 let newId;
 let attempts = 0;
@@ -1514,16 +1500,25 @@ const { data: idCheck } = await supabase.from('users').select('id').eq('id', new
 if (!idCheck) break;
 attempts++;
 } while (attempts < 10);
-const { error: insErr } = await supabase.from('users').insert({ 
-id: newId, 
-name: nameInput, 
-pass_hash: passHash, 
-online: true, 
-last_seen: new Date().toISOString() 
-});
-if (insErr) {
-console.error('Ошибка создания:', insErr);
-throw new Error('Не удалось создать аккаунт');
+const passHash = hashPassword(newId, passInput);
+let insErr = null;
+let inserted = false;
+// попытка 1: с pass_hash
+{
+const { error } = await supabase.from('users').insert({ id: newId, name: nameInput, pass_hash: passHash });
+if (!error) inserted = true; else insErr = error;
+}
+// попытка 2: без pass_hash (если колонки нет)
+if (!inserted && insErr && /pass_hash/i.test(insErr.message || '')) {
+const { error } = await supabase.from('users').insert({ id: newId, name: nameInput });
+if (!error) inserted = true; else insErr = error;
+}
+if (!inserted) {
+const m = (insErr && insErr.message) || '';
+if (/row-level security|RLS/i.test(m)) throw new Error('База данных блокирует создание (RLS). Разрешите INSERT/SELECT для таблицы users.');
+if (/duplicate key/i.test(m)) throw new Error('Это имя или ID уже заняты');
+if (/pass_hash/i.test(m)) throw new Error('В таблице users нет колонки pass_hash. Добавьте её (text) или создайте без неё.');
+throw new Error(m || 'Не удалось создать аккаунт');
 }
 loginForm.classList.add('hidden');
 registerForm.classList.add('hidden');
@@ -1558,28 +1553,36 @@ showApp();
 });
 loginBtn.addEventListener('click', async () => {
 const raw = loginId.value.trim();
-const passInput = loginPassword.value.trim();
+const passInput = loginPassword.value;
 if (!raw) return notify('Введите ID или имя');
 if (!passInput) return notify('Введите пароль');
-const passHash = simpleHash(passInput);
+try {
 let found = null;
 if (/^\d{9}$/.test(raw)) {
-const { data, error } = await supabase.from('users').select('*').eq('id', raw).eq('pass_hash', passHash).limit(1);
+const { data, error } = await supabase.from('users').select('*').eq('id', raw).limit(1);
 if (error) { notify('❌ Ошибка сервера: ' + error.message); return; }
 if (data && data.length > 0) found = data[0];
 } else {
-const { data, error } = await supabase.from('users').select('*').eq('name', raw).eq('pass_hash', passHash).limit(1);
+const { data, error } = await supabase.from('users').select('*').ilike('name', raw).limit(1);
 if (error) { notify('❌ Ошибка сервера: ' + error.message); return; }
 if (data && data.length > 0) found = data[0];
 }
-if (found) {
+if (!found) { notify('Неверный ID/имя или пароль'); return; }
+let ok = false;
+if (found.pass_hash) {
+ok = (found.pass_hash === hashPassword(found.id, passInput)) || (found.pass_hash === simpleHash(passInput));
+} else {
+ok = true;
+}
+if (!ok) { notify('Неверный ID/имя или пароль'); return; }
 myId = found.id; myName = found.name;
 localStorage.setItem('qwantum_myId', myId);
 localStorage.setItem('qwantum_myName', myName);
 localStorage.setItem('qwantum_isLoggedIn', 'true');
 showApp();
-} else {
-notify('Неверный ID/имя или пароль');
+} catch (e) {
+console.error(e);
+notify('❌ Ошибка входа');
 }
 });
 editNameBtn.addEventListener('click', async () => {
@@ -1587,7 +1590,7 @@ const newName = prompt('Введите новое имя (до 15 символо
 if (newName && newName.trim() !== '') {
 let trimmed = newName.trim();
 if (trimmed.length > 15) trimmed = trimmed.substring(0, 15);
-const { data: existing } = await supabase.from('users').select('id').eq('name', trimmed).neq('id', myId).limit(1);
+const { data: existing } = await supabase.from('users').select('id').ilike('name', trimmed).neq('id', myId).limit(1);
 if (existing && existing.length > 0) return notify('Это имя уже занято');
 myName = trimmed;
 localStorage.setItem('qwantum_myName', myName);
@@ -1701,9 +1704,8 @@ loadMoreMessages();
 }
 }
 async function loadMoreMessages() {
-if (isLoadingMore || !hasMoreMessages) return;
+if (isLoadingMore || !hasMoreMessages || !currentRoom) return;
 isLoadingMore = true;
-// индикатор загрузки сверху
 let indicator = messagesContainer.querySelector('.load-more-indicator');
 if (!indicator) {
 indicator = document.createElement('div');
@@ -1713,7 +1715,7 @@ messagesContainer.insertBefore(indicator, messagesContainer.firstChild);
 }
 const previousHeight = messagesContainer.scrollHeight;
 const previousTop = messagesContainer.scrollTop;
-const isPrivate = currentRoom && currentRoom.startsWith('private_');
+const isPrivate = currentRoom.startsWith('private_');
 const chatId = currentRoom === 'general' ? 'general' : currentRoom;
 const { data, error } = await supabase.from('messages')
 .select('*')
@@ -1722,24 +1724,21 @@ const { data, error } = await supabase.from('messages')
 .range(messagesOffset, messagesOffset + MESSAGES_LIMIT - 1);
 if (error) {
 console.error(error);
+hasMoreMessages = false;
 isLoadingMore = false;
 if (indicator) indicator.remove();
 return;
 }
-if (!data || data.length < MESSAGES_LIMIT) {
-hasMoreMessages = false;
-}
+if (!data || data.length < MESSAGES_LIMIT) hasMoreMessages = false;
 if (data && data.length > 0) {
 const sorted = [...data].reverse();
-const firstWasDateDivider = messagesContainer.firstChild && messagesContainer.firstChild.classList.contains('date-divider');
-// нужно временно сбросить lastRenderedDate, чтобы правильно вставить разделители дат
-// но только для старых сообщений — сохраним текущий
-const savedLastDate = lastRenderedDate;
-// найдём самое старое уже отрендеренное сообщение, чтобы правильно ставить разделители
-const firstRendered = messagesContainer.querySelector('.message');
-if (firstRendered) {
-const firstMsgId = firstRendered.id.replace('msg-', '');
-// не трогаем lastRenderedDate — разделители для старых сообщений поставим сами
+const frag = document.createDocumentFragment();
+let localLastDate = null;
+const existing = messagesContainer.querySelector('.message');
+let firstExistingDayKey = null;
+if (existing) {
+const prev = existing.previousElementSibling;
+if (prev && prev.classList && prev.classList.contains('date-divider')) firstExistingDayKey = prev.dataset.dayKey || null;
 }
 sorted.forEach(msg => {
 if (msg.text === '[GROUP]') return;
@@ -1749,23 +1748,23 @@ const dayKey = (() => {
 const d = new Date(msg.created_at);
 return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
 })();
-// проверим, есть ли уже такой разделитель
-const existingDividers = messagesContainer.querySelectorAll('.date-divider');
-let needDivider = true;
-for (const d of existingDividers) {
-if (d.dataset && d.dataset.dayKey === dayKey) { needDivider = false; break; }
-}
-if (needDivider) {
+if (dayKey !== localLastDate) {
+localLastDate = dayKey;
 const div = document.createElement('div');
 div.className = 'date-divider';
 div.dataset.dayKey = dayKey;
 div.textContent = formatDate(new Date(msg.created_at).getTime());
-messagesContainer.insertBefore(div, messagesContainer.firstChild);
+frag.appendChild(div);
 }
-renderMessage(msg, isPrivate, chatId, true);
+const el = buildMessageElement(msg, isPrivate);
+if (el) frag.appendChild(el);
 });
-lastRenderedDate = savedLastDate;
-// сохраняем позицию скролла
+const firstMsg = messagesContainer.querySelector('.message');
+if (firstMsg) {
+messagesContainer.insertBefore(frag, firstMsg);
+} else {
+messagesContainer.appendChild(frag);
+}
 const newHeight = messagesContainer.scrollHeight;
 messagesContainer.scrollTop = previousTop + (newHeight - previousHeight);
 messagesOffset += data.length;
@@ -1773,178 +1772,10 @@ messagesOffset += data.length;
 if (indicator) indicator.remove();
 isLoadingMore = false;
 }
-function openRoom(roomId, roomName) {
-currentRoom = roomId;
-currentChatName = roomName;
-activePrivateChatWith = null;
-currentPinned = null;
-pinnedBanner.classList.remove('active');
-chatName.textContent = roomName;
-chatName.onclick = null;
-chatUserId.textContent = 'Общий чат';
-chatAvatar.textContent = '#';
-chatAvatar.style.background = '#0066cc';
-chatAvatar.innerHTML = '#';
-chatAvatar.onclick = null;
-callBtn.style.display = 'none';
-historyBtn.style.display = 'none';
-unreadCounts[roomId] = 0;
-localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
-updateTitle();
-messageInput.disabled = false;
-sendBtn.disabled = false;
-noChat.classList.add('hidden');
-activeChatDiv.classList.remove('hidden');
-if (window.innerWidth <= 768) {
-sidebar.classList.add('hidden');
-chatArea.classList.add('active');
-}
-buildContactsList();
-resetPagination();
-loadMessages(roomId, false);
-loadPinned(roomId);
-attachScrollListener();
-}
-function openPrivateChat(otherId, otherName) {
-otherName = displayNameFor(otherId, otherName);
-if (!isContact(otherId)) {
-showUserProfile(otherId, otherName);
-return;
-}
-currentRoom = `private_${otherId}`;
-currentChatName = otherName;
-activePrivateChatWith = otherId;
-currentPinned = null;
-pinnedBanner.classList.remove('active');
-chatName.textContent = otherName;
-const online = onlineUsers.has(otherId);
-chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
-chatAvatar.textContent = otherName.charAt(0).toUpperCase();
-chatAvatar.style.background = getAvatarColor(otherName);
-chatAvatar.innerHTML = `${otherName.charAt(0).toUpperCase()}${online ? '<div class="status-dot"></div>' : ''}`;
-chatAvatar.onclick = () => showUserProfile(otherId, otherName);
-chatName.onclick = () => showUserProfile(otherId, otherName);
-callBtn.style.display = 'flex';
-historyBtn.style.display = 'flex';
-const storageKey = getChatId(myId, otherId);
-unreadCounts[storageKey] = 0;
-localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
-updateTitle();
-messageInput.disabled = false;
-sendBtn.disabled = false;
-noChat.classList.add('hidden');
-activeChatDiv.classList.remove('hidden');
-if (window.innerWidth <= 768) {
-sidebar.classList.add('hidden');
-chatArea.classList.add('active');
-}
-buildContactsList();
-resetPagination();
-loadMessages(storageKey, true);
-loadPinned(storageKey);
-attachScrollListener();
-// отметим все непрочитанные как прочитанные
-markAllReadInChat(storageKey);
-}
-function openGroupChat(groupId, groupName) {
-currentRoom = 'group_' + groupId;
-currentChatName = groupName;
-activePrivateChatWith = null;
-currentPinned = null;
-pinnedBanner.classList.remove('active');
-chatName.textContent = groupName;
-chatName.onclick = null;
-chatUserId.textContent = 'Группа';
-chatAvatar.textContent = groupName.charAt(0).toUpperCase();
-chatAvatar.style.background = 'linear-gradient(145deg, #7c4dff, #00b0ff)';
-chatAvatar.innerHTML = groupName.charAt(0).toUpperCase();
-chatAvatar.onclick = null;
-callBtn.style.display = 'none';
-historyBtn.style.display = 'none';
-unreadCounts[currentRoom] = 0;
-localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
-updateTitle();
-messageInput.disabled = false;
-sendBtn.disabled = false;
-noChat.classList.add('hidden');
-activeChatDiv.classList.remove('hidden');
-if (window.innerWidth <= 768) { sidebar.classList.add('hidden'); chatArea.classList.add('active'); }
-buildContactsList();
-resetPagination();
-loadMessages(currentRoom, false);
-loadPinned(currentRoom);
-attachScrollListener();
-markAllReadInChat(currentRoom);
-}
-backBtn.addEventListener('click', () => {
-if (window.innerWidth <= 768) {
-sidebar.classList.remove('hidden');
-chatArea.classList.remove('active');
-}
-noChat.classList.remove('hidden');
-activeChatDiv.classList.add('hidden');
-currentRoom = null;
-currentPinned = null;
-pinnedBanner.classList.remove('active');
-messagesContainer.innerHTML = '';
-messagesContainer.removeEventListener('scroll', onMessagesScroll);
-stopRecording(true);
-});
-let lastRenderedDate = null;
-async function loadMessages(roomPath, isPrivate) {
-messagesContainer.innerHTML = '';
-currentReplyData = null;
-replyPreview.classList.remove('active');
-lastRenderedDate = null;
-const chatId = roomPath === 'general' ? 'general' : roomPath;
-const { data, error } = await supabase.from('messages')
-.select('*')
-.eq('chat_id', chatId)
-.order('created_at', { ascending: false })
-.range(0, MESSAGES_LIMIT - 1);
-if (error) {
-console.error(error);
-return;
-}
-if (!data || data.length < MESSAGES_LIMIT) {
-hasMoreMessages = false;
-}
-if (data && data.length > 0) {
-const sorted = [...data].reverse();
-sorted.forEach(msg => {
-if (msg.text === '[GROUP]') return;
-renderMessage(msg, isPrivate, roomPath, false);
-});
-messagesContainer.scrollTop = messagesContainer.scrollHeight;
-messagesOffset = data.length;
-}
-}
-function updateStatusIcon(el, status) {
-el.className = 'msg-status ' + (status || 'sent');
-if (status === 'read') el.innerHTML = '<i class="fas fa-check-double"></i>';
-else if (status === 'delivered') el.innerHTML = '<i class="fas fa-check-double"></i>';
-else el.innerHTML = '<i class="fas fa-check"></i>';
-}
-function renderMessage(data, isPrivate, roomPath, prepend = false) {
-if (hiddenMessages.includes(data.id)) return;
-if (data.text === '[GROUP]') return;
+function buildMessageElement(data, isPrivate) {
+if (hiddenMessages.includes(data.id)) return null;
+if (data.text === '[GROUP]') return null;
 const isMe = data.sender_id === myId;
-const dayKey = (() => {
-const d = new Date(data.created_at);
-return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
-})();
-if (dayKey !== lastRenderedDate) {
-lastRenderedDate = dayKey;
-const div = document.createElement('div');
-div.className = 'date-divider';
-div.dataset.dayKey = dayKey;
-div.textContent = formatDate(new Date(data.created_at).getTime());
-if (prepend) {
-messagesContainer.insertBefore(div, messagesContainer.firstChild);
-} else {
-messagesContainer.appendChild(div);
-}
-}
 const wrapper = document.createElement('div');
 wrapper.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
 wrapper.id = `msg-${data.id}`;
@@ -2016,7 +1847,6 @@ metaEl.appendChild(ed);
 const timeSpan = document.createElement('span');
 timeSpan.textContent = formatTime(new Date(data.created_at).getTime());
 metaEl.appendChild(timeSpan);
-// статус для исходящих
 if (isMe) {
 const statusEl = document.createElement('span');
 updateStatusIcon(statusEl, data.status || 'sent');
@@ -2036,7 +1866,7 @@ const startPress = () => {
 wrapper._longPressed = false;
 pressTimer = setTimeout(() => {
 wrapper._longPressed = true;
-pendingDelete = { msgId: data.id, isPrivate, roomPath, data };
+pendingDelete = { msgId: data.id, isPrivate, roomPath: currentRoom, data };
 openActionMenu(data, isMe);
 }, 500);
 };
@@ -2047,12 +1877,177 @@ wrapper.addEventListener('mouseup', cancelPress);
 wrapper.addEventListener('mouseleave', cancelPress);
 wrapper.addEventListener('touchend', cancelPress);
 wrapper.addEventListener('touchcancel', cancelPress);
-if (prepend) {
-messagesContainer.insertBefore(wrapper, messagesContainer.querySelector('.message') || messagesContainer.firstChild);
-} else {
-messagesContainer.appendChild(wrapper);
-if (!prepend) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+return wrapper;
 }
+function openRoom(roomId, roomName) {
+currentRoom = roomId;
+currentChatName = roomName;
+activePrivateChatWith = null;
+currentPinned = null;
+pinnedBanner.classList.remove('active');
+chatName.textContent = roomName;
+chatName.onclick = null;
+chatUserId.textContent = 'Общий чат';
+chatAvatar.textContent = '#';
+chatAvatar.style.background = '#0066cc';
+chatAvatar.innerHTML = '#';
+chatAvatar.onclick = null;
+callBtn.style.display = 'none';
+historyBtn.style.display = 'none';
+unreadCounts[roomId] = 0;
+localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
+updateTitle();
+messageInput.disabled = false;
+sendBtn.disabled = false;
+noChat.classList.add('hidden');
+activeChatDiv.classList.remove('hidden');
+if (window.innerWidth <= 768) {
+sidebar.classList.add('hidden');
+chatArea.classList.add('active');
+}
+buildContactsList();
+resetPagination();
+loadMessages(roomId, false);
+loadPinned(roomId);
+attachScrollListener();
+}
+function openPrivateChat(otherId, otherName) {
+otherName = displayNameFor(otherId, otherName);
+if (!isContact(otherId)) {
+showUserProfile(otherId, otherName);
+return;
+}
+currentRoom = `private_${otherId}`;
+currentChatName = otherName;
+activePrivateChatWith = otherId;
+currentPinned = null;
+pinnedBanner.classList.remove('active');
+chatName.textContent = otherName;
+const online = onlineUsers.has(otherId);
+chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
+chatAvatar.textContent = otherName.charAt(0).toUpperCase();
+chatAvatar.style.background = getAvatarColor(otherName);
+chatAvatar.innerHTML = `${otherName.charAt(0).toUpperCase()}${online ? '<div class="status-dot"></div>' : ''}`;
+chatAvatar.onclick = () => showUserProfile(otherId, otherName);
+chatName.onclick = () => showUserProfile(otherId, otherName);
+callBtn.style.display = 'flex';
+historyBtn.style.display = 'flex';
+const storageKey = getChatId(myId, otherId);
+unreadCounts[storageKey] = 0;
+localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
+updateTitle();
+messageInput.disabled = false;
+sendBtn.disabled = false;
+noChat.classList.add('hidden');
+activeChatDiv.classList.remove('hidden');
+if (window.innerWidth <= 768) {
+sidebar.classList.add('hidden');
+chatArea.classList.add('active');
+}
+buildContactsList();
+resetPagination();
+loadMessages(storageKey, true);
+loadPinned(storageKey);
+attachScrollListener();
+markAllReadInChat(storageKey);
+}
+function openGroupChat(groupId, groupName) {
+currentRoom = 'group_' + groupId;
+currentChatName = groupName;
+activePrivateChatWith = null;
+currentPinned = null;
+pinnedBanner.classList.remove('active');
+chatName.textContent = groupName;
+chatName.onclick = null;
+chatUserId.textContent = 'Группа';
+chatAvatar.textContent = groupName.charAt(0).toUpperCase();
+chatAvatar.style.background = 'linear-gradient(145deg, #7c4dff, #00b0ff)';
+chatAvatar.innerHTML = groupName.charAt(0).toUpperCase();
+chatAvatar.onclick = null;
+callBtn.style.display = 'none';
+historyBtn.style.display = 'none';
+unreadCounts[currentRoom] = 0;
+localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
+updateTitle();
+messageInput.disabled = false;
+sendBtn.disabled = false;
+noChat.classList.add('hidden');
+activeChatDiv.classList.remove('hidden');
+if (window.innerWidth <= 768) { sidebar.classList.add('hidden'); chatArea.classList.add('active'); }
+buildContactsList();
+resetPagination();
+loadMessages(currentRoom, false);
+loadPinned(currentRoom);
+attachScrollListener();
+markAllReadInChat(currentRoom);
+}
+backBtn.addEventListener('click', () => {
+if (window.innerWidth <= 768) {
+sidebar.classList.remove('hidden');
+chatArea.classList.remove('active');
+}
+noChat.classList.remove('hidden');
+activeChatDiv.classList.add('hidden');
+currentRoom = null;
+currentPinned = null;
+pinnedBanner.classList.remove('active');
+messagesContainer.innerHTML = '';
+messagesContainer.removeEventListener('scroll', onMessagesScroll);
+stopRecording(true);
+});
+let lastRenderedDate = null;
+async function loadMessages(roomPath, isPrivate) {
+messagesContainer.innerHTML = '';
+currentReplyData = null;
+replyPreview.classList.remove('active');
+lastRenderedDate = null;
+const chatId = roomPath === 'general' ? 'general' : roomPath;
+const { data, error } = await supabase.from('messages')
+.select('*')
+.eq('chat_id', chatId)
+.order('created_at', { ascending: false })
+.range(0, MESSAGES_LIMIT - 1);
+if (error) {
+console.error(error);
+hasMoreMessages = false;
+return;
+}
+if (!data || data.length < MESSAGES_LIMIT) hasMoreMessages = false;
+if (data && data.length > 0) {
+const sorted = [...data].reverse();
+sorted.forEach(msg => {
+if (msg.text === '[GROUP]') return;
+const el = buildMessageElement(msg, isPrivate);
+if (!el) return;
+const dayKey = (() => {
+const d = new Date(msg.created_at);
+return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+})();
+if (dayKey !== lastRenderedDate) {
+lastRenderedDate = dayKey;
+const div = document.createElement('div');
+div.className = 'date-divider';
+div.dataset.dayKey = dayKey;
+div.textContent = formatDate(new Date(msg.created_at).getTime());
+messagesContainer.appendChild(div);
+}
+messagesContainer.appendChild(el);
+});
+messagesContainer.scrollTop = messagesContainer.scrollHeight;
+messagesOffset = data.length;
+}
+}
+function updateStatusIcon(el, status) {
+el.className = 'msg-status ' + (status || 'sent');
+if (status === 'read') el.innerHTML = '<i class="fas fa-check-double"></i>';
+else if (status === 'delivered') el.innerHTML = '<i class="fas fa-check-double"></i>';
+else el.innerHTML = '<i class="fas fa-check"></i>';
+}
+function renderMessage(data, isPrivate, roomPath, prepend = false) {
+const el = buildMessageElement(data, isPrivate);
+if (!el) return;
+if (prepend) messagesContainer.insertBefore(el, messagesContainer.firstChild);
+else messagesContainer.appendChild(el);
 }
 function openActionMenu(data, isMe) {
 if (!isMe) {
@@ -2099,7 +2094,7 @@ pendingDelete = null;
 });
 actPinBtn.addEventListener('click', async () => {
 if (!pendingDelete || !currentRoom) return;
-const { msgId, isPrivate, roomPath, data } = pendingDelete;
+const { msgId, roomPath, data } = pendingDelete;
 try {
 if (currentPinned && currentPinned.message_id === msgId) {
 await supabase.from('pinned').delete().eq('chat_id', roomPath);
@@ -2264,7 +2259,6 @@ micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
 recordingBar.classList.remove('active');
 recTimeEl.textContent = '00:00';
 }
-// прогресс загрузки файла
 function showUploadProgress(fileName, percent) {
 let bar = document.querySelector('.upload-progress');
 if (!bar) {
@@ -2292,7 +2286,6 @@ async function uploadFileWithProgress(file, onProgress) {
 const nameToUse = file.name || ('file_' + Date.now());
 const ext = nameToUse.split('.').pop() || 'bin';
 const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-// используем fetch с отслеживанием прогресса через XHR
 return new Promise((resolve, reject) => {
 const url = `${SUPABASE_URL}/storage/v1/object/qwantum-files/${fileName}`;
 const xhr = new XMLHttpRequest();
@@ -2317,15 +2310,6 @@ reject(new Error('Upload failed: ' + xhr.status));
 xhr.onerror = () => reject(new Error('Network error'));
 xhr.send(file);
 });
-}
-async function uploadFile(file) {
-const nameToUse = file.name || ('file_' + Date.now());
-const ext = nameToUse.split('.').pop() || 'bin';
-const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-const { data, error } = await supabase.storage.from('qwantum-files').upload(fileName, file);
-if (error) throw error;
-const { data: publicUrlData } = supabase.storage.from('qwantum-files').getPublicUrl(fileName);
-return publicUrlData.publicUrl;
 }
 async function sendVoiceBlob(blob, duration) {
 if (!currentRoom) return;
@@ -2563,7 +2547,6 @@ reply: { group_name: name, members: checked, owner: myId }
 });
 } catch (e) { console.warn('group sync failed', e); }
 });
-// отметка прочитанного
 async function markMessagesRead(ids) {
 if (!ids || ids.length === 0) return;
 try {
@@ -2572,7 +2555,6 @@ await supabase.from('messages').update({ status: 'read' }).in('id', ids);
 }
 async function markAllReadInChat(chatId) {
 try {
-// найдём все непрочитанные входящие в этом чате
 const { data } = await supabase.from('messages')
 .select('id')
 .eq('chat_id', chatId)
@@ -2581,14 +2563,6 @@ const { data } = await supabase.from('messages')
 if (data && data.length > 0) {
 const ids = data.map(m => m.id);
 await supabase.from('messages').update({ status: 'read' }).in('id', ids);
-// обновим иконки локально
-ids.forEach(id => {
-const el = document.getElementById(`msg-${id}`);
-if (el) {
-const s = el.querySelector('.msg-status');
-if (s) updateStatusIcon(s, 'read');
-}
-});
 }
 } catch (e) { console.warn('markAllRead failed', e); }
 }
