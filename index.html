@@ -264,7 +264,14 @@ cursor: pointer; border: 3px solid #141e42; box-shadow: 0 4px 12px rgba(0,0,0,0.
 }
 .profile-avatar-edit i { color: white; font-size: 16px; }
 .profile-name-big { font-size: 24px; font-weight: 700; color: white; margin-bottom: 6px; text-align: center; }
-.profile-id-big { font-family: monospace; color: #9aabdd; font-size: 15px; margin-bottom: 22px; text-align: center; letter-spacing: 1px; }
+.profile-id-big { font-family: monospace; color: #9aabdd; font-size: 15px; margin-bottom: 12px; text-align: center; letter-spacing: 1px; }
+.profile-bio { font-size: 14px; color: #c0d0ff; text-align: center; margin-bottom: 18px; padding: 0 8px; line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
+.profile-bio-empty { font-size: 13px; color: #7f90cf; text-align: center; margin-bottom: 18px; font-style: italic; }
+.profile-bio-edit-btn {
+display: block; margin: 0 auto 18px; background: transparent; border: 1px solid #4f6ac0;
+color: #a0d0ff; font-size: 13px; padding: 6px 16px; border-radius: 20px; cursor: pointer;
+}
+.profile-bio-edit-btn:hover { background: rgba(0,176,255,0.1); border-color: var(--accent); }
 #history-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
 #history-modal.active { display: flex; }
 #history-modal .modal-content { max-width: 440px; }
@@ -541,6 +548,9 @@ body { padding: 0; }
 <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
 <div class="profile-name-big" id="profile-name-big">Имя</div>
 <div class="profile-id-big" id="profile-id-big">ID: 000000000</div>
+<div class="profile-bio" id="profile-bio" style="display:none;"></div>
+<div class="profile-bio-empty" id="profile-bio-empty" style="display:none;">Описание не задано</div>
+<button class="profile-bio-edit-btn" id="profile-bio-edit-btn" style="display:none;">✏️ Редактировать описание</button>
 <button class="modal-btn add" id="profile-add" style="display:none;"><i class="fas fa-user-plus"></i> Добавить контакт</button>
 <button class="modal-btn remove" id="profile-remove" style="display:none;"><i class="fas fa-user-minus"></i> Удалить из контактов</button>
 <button class="modal-btn cancel" id="profile-close">Закрыть</button>
@@ -587,50 +597,37 @@ let audioCtx = null;
 let audioUnlocked = false;
 function unlockAudio() {
 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-if (audioCtx.state === 'suspended') {
-audioCtx.resume().then(() => { audioUnlocked = true; }).catch(() => {});
-} else audioUnlocked = true;
+if (audioCtx.state === 'suspended') audioCtx.resume().then(() => { audioUnlocked = true; }).catch(() => {});
+else audioUnlocked = true;
 }
-['click', 'touchstart', 'keydown'].forEach(ev =>
-document.addEventListener(ev, unlockAudio, { once: true, passive: true })
-);
+['click', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { once: true, passive: true }));
 function playSound(type) {
 if (!audioCtx) return;
 if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
 const now = audioCtx.currentTime;
 const osc = audioCtx.createOscillator();
 const gain = audioCtx.createGain();
-osc.connect(gain);
-gain.connect(audioCtx.destination);
+osc.connect(gain); gain.connect(audioCtx.destination);
 if (type === 'send') {
 osc.type = 'sine';
-osc.frequency.setValueAtTime(800, now);
-osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
-gain.gain.setValueAtTime(0.05, now);
-gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 osc.start(now); osc.stop(now + 0.15);
 } else if (type === 'receive') {
 osc.type = 'sine';
 osc.frequency.setValueAtTime(600, now);
-gain.gain.setValueAtTime(0.08, now);
-gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 osc.start(now); osc.stop(now + 0.2);
 setTimeout(() => {
-const o2 = audioCtx.createOscillator();
-const g2 = audioCtx.createGain();
+const o2 = audioCtx.createOscillator(); const g2 = audioCtx.createGain();
 o2.connect(g2); g2.connect(audioCtx.destination);
-o2.type = 'sine';
-o2.frequency.setValueAtTime(800, audioCtx.currentTime);
-g2.gain.setValueAtTime(0.08, audioCtx.currentTime);
-g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+o2.type = 'sine'; o2.frequency.setValueAtTime(800, audioCtx.currentTime);
+g2.gain.setValueAtTime(0.08, audioCtx.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
 o2.start(); o2.stop(audioCtx.currentTime + 0.2);
 }, 150);
 } else if (type === 'ring') {
-osc.type = 'square';
-osc.frequency.setValueAtTime(440, now);
-gain.gain.setValueAtTime(0.03, now);
-gain.gain.setValueAtTime(0.03, now + 0.1);
-gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+osc.type = 'square'; osc.frequency.setValueAtTime(440, now);
+gain.gain.setValueAtTime(0.03, now); gain.gain.setValueAtTime(0.03, now + 0.1); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 osc.start(now); osc.stop(now + 0.2);
 }
 }
@@ -656,6 +653,8 @@ let messagesOffset = 0;
 let isLoadingMore = false;
 let hasMoreMessages = true;
 let userAvatarMap = {};
+let messagesHasStatus = true;
+let usersHasBio = true;
 function displayNameFor(uid, fallbackName) { return contactAliases[uid] || fallbackName || ('ID ' + uid); }
 function saveAliases() { localStorage.setItem('qwantum_aliases', JSON.stringify(contactAliases)); }
 function saveGroups() { localStorage.setItem('qwantum_groups', JSON.stringify(myGroups)); }
@@ -670,19 +669,9 @@ return null;
 function setAvatarElement(el, uid, name, showStatus) {
 const url = getAvatarFor(uid, name);
 el.innerHTML = '';
-if (url) {
-const img = document.createElement('img');
-img.src = url;
-img.alt = name || '';
-el.appendChild(img);
-} else {
-el.textContent = (name || '?').charAt(0).toUpperCase();
-}
-if (showStatus) {
-const dot = document.createElement('div');
-dot.className = 'status-dot';
-el.appendChild(dot);
-}
+if (url) { const img = document.createElement('img'); img.src = url; img.alt = name || ''; el.appendChild(img); }
+else el.textContent = (name || '?').charAt(0).toUpperCase();
+if (showStatus) { const dot = document.createElement('div'); dot.className = 'status-dot'; el.appendChild(dot); }
 }
 let presenceChannel = null;
 let onlineUsers = new Set();
@@ -779,6 +768,9 @@ const profileAvatarEdit = document.getElementById('profile-avatar-edit');
 const avatarFileInput = document.getElementById('avatarFileInput');
 const profileNameBig = document.getElementById('profile-name-big');
 const profileIdBig = document.getElementById('profile-id-big');
+const profileBio = document.getElementById('profile-bio');
+const profileBioEmpty = document.getElementById('profile-bio-empty');
+const profileBioEditBtn = document.getElementById('profile-bio-edit-btn');
 const profileAddBtn = document.getElementById('profile-add');
 const profileRemoveBtn = document.getElementById('profile-remove');
 const profileCloseBtn = document.getElementById('profile-close');
@@ -803,10 +795,7 @@ const endCallBtn = document.getElementById('end-call-btn');
 const remoteAudio = document.getElementById('remote-audio');
 window.addEventListener('focus', () => {
 isWindowFocused = true;
-if (currentRoom) {
-const chatId = currentRoom === 'general' ? 'general' : currentRoom;
-markAllReadInChat(chatId);
-}
+if (currentRoom) { const chatId = currentRoom === 'general' ? 'general' : currentRoom; markAllReadInChat(chatId); }
 });
 window.addEventListener('blur', () => { isWindowFocused = false; });
 function getAvatarColor(name) {
@@ -814,13 +803,9 @@ let hash = 0;
 for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
 return `hsl(${hash % 360}, 70%, 50%)`;
 }
-function formatTime(timestamp) {
-if (!timestamp) return '';
-return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
+function formatTime(timestamp) { if (!timestamp) return ''; return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 function formatDate(timestamp) {
-const d = new Date(timestamp);
-const now = new Date();
+const d = new Date(timestamp); const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 const diffDays = Math.round((today - msgDay) / (24 * 3600 * 1000));
@@ -830,30 +815,17 @@ if (diffDays === -1) return 'Завтра';
 if (diffDays > 1 && diffDays < 7) return d.toLocaleDateString('ru-RU', { weekday: 'long' });
 return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
-function formatDuration(ms) {
-const s = Math.floor(ms / 1000);
-const m = Math.floor(s / 60);
-const r = s % 60;
-if (m === 0) return r + ' сек';
-return m + ' мин ' + r + ' сек';
-}
+function formatDuration(ms) { const s = Math.floor(ms / 1000); const m = Math.floor(s / 60); const r = s % 60; if (m === 0) return r + ' сек'; return m + ' мин ' + r + ' сек'; }
 function getChatId(id1, id2) { return [id1, id2].sort().join('_'); }
-function simpleHash(str) {
-let hash = 0;
-for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash) + str.charCodeAt(i);
-return (hash |= 0).toString(16);
-}
+function simpleHash(str) { let hash = 0; for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash) + str.charCodeAt(i); return (hash |= 0).toString(16); }
 function hashPassword(id, password) { return simpleHash(String(id) + ':' + password); }
 function notify(msg) {
-notifText.innerText = msg;
-notif.classList.remove('hidden');
-clearTimeout(notify._t);
-notify._t = setTimeout(() => notif.classList.add('hidden'), 4000);
+notifText.innerText = msg; notif.classList.remove('hidden');
+clearTimeout(notify._t); notify._t = setTimeout(() => notif.classList.add('hidden'), 4000);
 }
 function formatBytes(bytes, decimals = 2) {
 if (bytes === 0) return '0 Bytes';
-const k = 1024;
-const dm = decimals < 0 ? 0 : decimals;
+const k = 1024; const dm = decimals < 0 ? 0 : decimals;
 const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
 const i = Math.floor(Math.log(bytes) / Math.log(k));
 return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
@@ -861,9 +833,7 @@ return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 function isContact(uid) { return !!(myContacts && myContacts[uid]); }
 function initPresence() {
 if (presenceChannel) supabase.removeChannel(presenceChannel);
-presenceChannel = supabase.channel('online-users', {
-config: { presence: { key: myId } }
-});
+presenceChannel = supabase.channel('online-users', { config: { presence: { key: myId } } });
 presenceChannel
 .on('presence', { event: 'sync' }, () => {
 const state = presenceChannel.presenceState();
@@ -874,58 +844,32 @@ const online = onlineUsers.has(activePrivateChatWith);
 chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
 }
 })
-.on('presence', { event: 'join' }, ({ key }) => {
-onlineUsers.add(key);
-buildContactsList();
-})
-.on('presence', { event: 'leave' }, ({ key }) => {
-onlineUsers.delete(key);
-buildContactsList();
-})
-.subscribe(async (status) => {
-if (status === 'SUBSCRIBED') {
-await presenceChannel.track({ online_at: new Date().toISOString() });
-}
-});
+.on('presence', { event: 'join' }, ({ key }) => { onlineUsers.add(key); buildContactsList(); })
+.on('presence', { event: 'leave' }, ({ key }) => { onlineUsers.delete(key); buildContactsList(); })
+.subscribe(async (status) => { if (status === 'SUBSCRIBED') await presenceChannel.track({ online_at: new Date().toISOString() }); });
 }
 function showUserProfile(uid, name) {
 profileTargetId = uid;
 profileTargetName = name;
 const url = getAvatarFor(uid, name);
-if (url) {
-profileAvatarImg.src = url;
-profileAvatarImg.style.display = 'block';
-profileAvatarInitial.style.display = 'none';
-} else {
-profileAvatarImg.style.display = 'none';
-profileAvatarInitial.style.display = 'block';
-profileAvatarInitial.textContent = (name || '?').charAt(0).toUpperCase();
-}
+if (url) { profileAvatarImg.src = url; profileAvatarImg.style.display = 'block'; profileAvatarInitial.style.display = 'none'; }
+else { profileAvatarImg.style.display = 'none'; profileAvatarInitial.style.display = 'block'; profileAvatarInitial.textContent = (name || '?').charAt(0).toUpperCase(); }
 profileAvatarBig.style.background = getAvatarColor(name);
-if (uid === myId) {
-profileAvatarEdit.style.display = 'flex';
-} else {
-profileAvatarEdit.style.display = 'none';
-}
+profileAvatarEdit.style.display = (uid === myId) ? 'flex' : 'none';
 profileNameBig.textContent = displayNameFor(uid, name);
 profileIdBig.textContent = 'ID: ' + uid;
+const u = allUsers[uid];
+const bio = u && u.bio ? u.bio : null;
+if (bio) { profileBio.textContent = bio; profileBio.style.display = 'block'; profileBioEmpty.style.display = 'none'; }
+else { profileBio.style.display = 'none'; profileBioEmpty.style.display = 'block'; }
+profileBioEditBtn.style.display = (uid === myId) ? 'block' : 'none';
 const isSelf = uid === myId;
-if (isSelf) {
-profileAddBtn.style.display = 'none';
-profileRemoveBtn.style.display = 'none';
-} else if (isContact(uid)) {
-profileAddBtn.style.display = 'none';
-profileRemoveBtn.style.display = 'block';
-} else {
-profileAddBtn.style.display = 'block';
-profileRemoveBtn.style.display = 'none';
-}
+if (isSelf) { profileAddBtn.style.display = 'none'; profileRemoveBtn.style.display = 'none'; }
+else if (isContact(uid)) { profileAddBtn.style.display = 'none'; profileRemoveBtn.style.display = 'block'; }
+else { profileAddBtn.style.display = 'block'; profileRemoveBtn.style.display = 'none'; }
 profileModal.classList.add('active');
 }
-profileAvatarEdit.addEventListener('click', () => {
-if (profileTargetId !== myId) return;
-avatarFileInput.click();
-});
+profileAvatarEdit.addEventListener('click', () => { if (profileTargetId !== myId) return; avatarFileInput.click(); });
 avatarFileInput.addEventListener('change', async (e) => {
 const file = e.target.files[0];
 if (!file) return;
@@ -934,32 +878,42 @@ if (file.size > 5 * 1024 * 1024) return notify('Максимум 5 МБ');
 notify('Загрузка аватарки...');
 try {
 let blob = file;
-try { blob = await compressImage(file, 400); } catch (err) { console.warn('compress failed, using original', err); }
+try { blob = await compressImage(file, 400); } catch (err) { console.warn('compress failed', err); }
 const fileName = `avatar_${myId}_${Date.now()}.jpg`;
 const { error: upErr } = await supabase.storage.from('qwantum-files').upload(fileName, blob, { upsert: true, contentType: 'image/jpeg' });
 if (upErr) throw upErr;
 const { data: urlData } = supabase.storage.from('qwantum-files').getPublicUrl(fileName);
 const url = urlData.publicUrl;
+let dbOk = true;
 const { error: upDbErr } = await supabase.from('users').update({ avatar_url: url }).eq('id', myId);
-if (upDbErr) {
-console.warn('avatar_url update failed (колонки нет?):', upDbErr.message);
-notify('⚠️ Картинка загружена, но не сохранилась в профиле. Добавь колонку avatar_url.');
-} else {
-notify('Аватарка обновлена');
-}
+if (upDbErr) { dbOk = false; console.warn('avatar_url update failed:', upDbErr.message); }
 myAvatarUrl = url;
 localStorage.setItem('qwantum_myAvatar', url);
 userAvatarMap[myId] = url;
 setAvatarElement(userAvatar, myId, myName, false);
-profileAvatarImg.src = url;
-profileAvatarImg.style.display = 'block';
-profileAvatarInitial.style.display = 'none';
+profileAvatarImg.src = url; profileAvatarImg.style.display = 'block'; profileAvatarInitial.style.display = 'none';
 buildContactsList();
-} catch (err) {
-console.error(err);
-notify('❌ Ошибка: ' + (err.message || 'не удалось'));
-}
+notify(dbOk ? 'Аватарка обновлена' : '⚠️ Аватарка загружена, но не сохранилась в профиле (колонка avatar_url?)');
+} catch (err) { console.error(err); notify('❌ Ошибка: ' + (err.message || 'не удалось')); }
 avatarFileInput.value = '';
+});
+profileBioEditBtn.addEventListener('click', async () => {
+if (profileTargetId !== myId) return;
+const u = allUsers[myId];
+const current = (u && u.bio) || '';
+const newBio = prompt('Описание профиля (до 200 символов):', current);
+if (newBio === null) return;
+let trimmed = newBio.trim();
+if (trimmed.length > 200) trimmed = trimmed.substring(0, 200);
+if (allUsers[myId]) allUsers[myId].bio = trimmed;
+profileBio.textContent = trimmed;
+if (trimmed) { profileBio.style.display = 'block'; profileBioEmpty.style.display = 'none'; }
+else { profileBio.style.display = 'none'; profileBioEmpty.style.display = 'block'; }
+try {
+const { error } = await supabase.from('users').update({ bio: trimmed }).eq('id', myId);
+if (error) { usersHasBio = false; notify('⚠️ Локально сохранено. Добавь колонку bio в users.'); console.warn(error); }
+else notify('Описание обновлено');
+} catch (e) { console.warn(e); }
 });
 profileAddBtn.addEventListener('click', async () => {
 if (!profileTargetId) return;
@@ -970,10 +924,7 @@ profileModal.classList.remove('active');
 buildContactsList();
 notify('Контакт добавлен: ' + profileTargetName);
 openPrivateChat(profileTargetId, profileTargetName);
-} catch (e) {
-console.error(e);
-notify('❌ Не удалось добавить контакт');
-}
+} catch (e) { console.error(e); notify('❌ Не удалось добавить контакт'); }
 });
 profileRemoveBtn.addEventListener('click', async () => {
 if (!profileTargetId) return;
@@ -984,25 +935,16 @@ delete myContacts[profileTargetId];
 profileModal.classList.remove('active');
 buildContactsList();
 if (activePrivateChatWith === profileTargetId) {
-activeChatDiv.classList.add('hidden');
-noChat.classList.remove('hidden');
-currentRoom = null;
-activePrivateChatWith = null;
+activeChatDiv.classList.add('hidden'); noChat.classList.remove('hidden');
+currentRoom = null; activePrivateChatWith = null;
 }
 notify('Контакт удалён');
-} catch (e) {
-console.error(e);
-notify('❌ Не удалось удалить');
-}
+} catch (e) { console.error(e); notify('❌ Не удалось удалить'); }
 });
 profileCloseBtn.addEventListener('click', () => profileModal.classList.remove('active'));
-profileModal.addEventListener('click', (e) => {
-if (e.target === profileModal) profileModal.classList.remove('active');
-});
+profileModal.addEventListener('click', (e) => { if (e.target === profileModal) profileModal.classList.remove('active'); });
 historyClose.addEventListener('click', () => historyModal.classList.remove('active'));
-historyModal.addEventListener('click', (e) => {
-if (e.target === historyModal) historyModal.classList.remove('active');
-});
+historyModal.addEventListener('click', (e) => { if (e.target === historyModal) historyModal.classList.remove('active'); });
 historyBtn.addEventListener('click', async () => {
 if (!activePrivateChatWith) return notify('История только в личных чатах');
 const chatId = getChatId(myId, activePrivateChatWith);
@@ -1012,43 +954,19 @@ try {
 const { data, error } = await supabase.from('call_history').select('*').eq('chat_id', chatId).order('created_at', { ascending: false });
 if (error) throw error;
 historyList.innerHTML = '';
-if (!data || data.length === 0) {
-historyList.innerHTML = '<div class="empty-history">История пуста</div>';
-return;
-}
+if (!data || data.length === 0) { historyList.innerHTML = '<div class="empty-history">История пуста</div>'; return; }
 data.forEach(item => {
 const el = document.createElement('div');
 el.className = 'history-item';
-let iconClass = 'fa-phone';
-let iconType = 'outgoing';
-let typeText = 'Исходящий';
-if (item.direction === 'incoming') {
-iconClass = 'fa-phone-arrow-down-left';
-iconType = 'incoming';
-typeText = item.status === 'missed' ? 'Пропущенный' : 'Входящий';
-if (item.status === 'missed') { iconType = 'missed'; iconClass = 'fa-phone-slash'; }
-} else if (item.direction === 'outgoing') {
-iconClass = 'fa-phone-arrow-up-right';
-iconType = 'outgoing';
-typeText = item.status === 'rejected' ? 'Отклонён собеседником' : (item.status === 'missed' ? 'Не отвечен' : 'Исходящий');
-if (item.status === 'rejected' || item.status === 'missed') iconType = 'missed';
-}
+let iconClass = 'fa-phone'; let iconType = 'outgoing'; let typeText = 'Исходящий';
+if (item.direction === 'incoming') { iconClass = 'fa-phone-arrow-down-left'; iconType = 'incoming'; typeText = item.status === 'missed' ? 'Пропущенный' : 'Входящий'; if (item.status === 'missed') { iconType = 'missed'; iconClass = 'fa-phone-slash'; } }
+else if (item.direction === 'outgoing') { iconClass = 'fa-phone-arrow-up-right'; iconType = 'outgoing'; typeText = item.status === 'rejected' ? 'Отклонён собеседником' : (item.status === 'missed' ? 'Не отвечен' : 'Исходящий'); if (item.status === 'rejected' || item.status === 'missed') iconType = 'missed'; }
 const dur = item.duration ? formatDuration(item.duration) : (item.status === 'missed' || item.status === 'rejected' ? '' : '—');
 const d = new Date(item.created_at);
-el.innerHTML = `
-<div class="history-icon ${iconType}"><i class="fas ${iconClass}"></i></div>
-<div class="history-info">
-<div class="history-type">${typeText}</div>
-<div class="history-meta">${dur}</div>
-</div>
-<div class="history-time">${formatDate(d)} ${formatTime(d)}</div>
-`;
+el.innerHTML = `<div class="history-icon ${iconType}"><i class="fas ${iconClass}"></i></div><div class="history-info"><div class="history-type">${typeText}</div><div class="history-meta">${dur}</div></div><div class="history-time">${formatDate(d)} ${formatTime(d)}</div>`;
 historyList.appendChild(el);
 });
-} catch (e) {
-console.error(e);
-historyList.innerHTML = '<div class="empty-history">Ошибка загрузки</div>';
-}
+} catch (e) { console.error(e); historyList.innerHTML = '<div class="empty-history">Ошибка загрузки</div>'; }
 });
 const servers = {
 iceServers: [
@@ -1069,10 +987,8 @@ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
 notify(location.protocol !== 'https:' ? '❌ Микрофон только по HTTPS' : '❌ Браузер не поддерживает микрофон');
 return false;
 }
-try {
-localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-return true;
-} catch (e) {
+try { localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); return true; }
+catch (e) {
 if (e.name === 'NotAllowedError') notify('❌ Разрешите доступ к микрофону');
 else if (e.name === 'NotFoundError') notify('❌ Микрофон не найден');
 else if (e.name === 'NotReadableError') notify('❌ Микрофон занят');
@@ -1082,10 +998,7 @@ return false;
 }
 async function flushRemoteCandidates() {
 if (!pc) return;
-while (remoteCandidateQueue.length > 0) {
-const c = remoteCandidateQueue.shift();
-try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { console.warn('ICE err', e.message); }
-}
+while (remoteCandidateQueue.length > 0) { const c = remoteCandidateQueue.shift(); try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { console.warn('ICE err', e.message); } }
 }
 let candidatesSubKey = null;
 function subscribeCandidates(callId, whoId) {
@@ -1096,11 +1009,8 @@ candidatesChannel = supabase.channel(`cand_${callId}_${whoId}`)
 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_candidates', filter: `chat_id=eq.${callId}` }, async payload => {
 const c = payload.new;
 if (c.from_user === whoId) {
-if (pc && pc.remoteDescription) {
-try { await pc.addIceCandidate(new RTCIceCandidate(c.candidate)); } catch (e) { console.warn('addIce', e.message); }
-} else {
-remoteCandidateQueue.push(c.candidate);
-}
+if (pc && pc.remoteDescription) { try { await pc.addIceCandidate(new RTCIceCandidate(c.candidate)); } catch (e) { console.warn('addIce', e.message); } }
+else remoteCandidateQueue.push(c.candidate);
 }
 })
 .subscribe();
@@ -1112,12 +1022,8 @@ activeStatus.textContent = 'Соединено';
 if (!callTimerInterval) startCallTimer();
 remoteAudio.play().catch(() => {});
 if (iceRestartTimeout) { clearTimeout(iceRestartTimeout); iceRestartTimeout = null; }
-} else if (pc.connectionState === 'failed') {
-activeStatus.textContent = 'Сбой соединения';
-notify('⚠️ Не удалось установить аудиосвязь');
-} else if (pc.connectionState === 'disconnected') {
-activeStatus.textContent = 'Связь потеряна...';
-}
+} else if (pc.connectionState === 'failed') { activeStatus.textContent = 'Сбой соединения'; notify('⚠️ Не удалось установить аудиосвязь'); }
+else if (pc.connectionState === 'disconnected') { activeStatus.textContent = 'Связь потеряна...'; }
 };
 pc.oniceconnectionstatechange = () => {
 if (pc.iceConnectionState === 'checking') activeStatus.textContent = 'Проверка ICE...';
@@ -1179,11 +1085,8 @@ try { await pc.setRemoteDescription(new RTCSessionDescription(data.answer)); awa
 }
 function showActiveCall(name, color, status, avatarUrl) {
 activeCallDiv.classList.add('active');
-if (avatarUrl) {
-activeAvatar.innerHTML = `<img src="${avatarUrl}" alt="">`;
-} else {
-activeAvatar.textContent = name.charAt(0).toUpperCase();
-}
+if (avatarUrl) activeAvatar.innerHTML = `<img src="${avatarUrl}" alt="">`;
+else activeAvatar.textContent = name.charAt(0).toUpperCase();
 activeAvatar.style.background = color;
 activeName.textContent = name;
 activeStatus.textContent = status;
@@ -1209,11 +1112,7 @@ if (candidatesChannel) { supabase.removeChannel(candidatesChannel); candidatesCh
 candidatesSubKey = null;
 activeCallDiv.classList.remove('active');
 incomingCallDiv.classList.remove('active');
-currentCallWith = null;
-incomingCallData = null;
-isMuted = false;
-callStartTime = null;
-remoteCandidateQueue = [];
+currentCallWith = null; incomingCallData = null; isMuted = false; callStartTime = null; remoteCandidateQueue = [];
 muteCallBtn.classList.remove('muted');
 muteCallBtn.innerHTML = '<i class="fas fa-microphone"></i>';
 if (incomingCallWatcher) { try { incomingCallWatcher(); } catch(e){} incomingCallWatcher = null; }
@@ -1236,7 +1135,8 @@ const call = payload.new;
 if (call.callee_id === myId && call.status === 'ringing' && !incomingCallDiv.classList.contains('active') && !pc) {
 incomingCallData = { callId: call.chat_id, ...call };
 const callerAvatar = getAvatarFor(call.caller_id, call.caller_name);
-if (callerAvatar) { incomingAvatar.innerHTML = `<img src="${callerAvatar}" alt="">`; } else { incomingAvatar.textContent = call.caller_name.charAt(0).toUpperCase(); }
+if (callerAvatar) incomingAvatar.innerHTML = `<img src="${callerAvatar}" alt="">`;
+else incomingAvatar.textContent = call.caller_name.charAt(0).toUpperCase();
 incomingAvatar.style.background = getAvatarColor(call.caller_name);
 incomingName.textContent = call.caller_name;
 incomingStatus.textContent = 'Входящий аудиозвонок...';
@@ -1302,11 +1202,7 @@ await flushRemoteCandidates();
 const answer = await pc.createAnswer();
 await pc.setLocalDescription(answer);
 await supabase.from('calls').update({ answer: { type: answer.type, sdp: answer.sdp }, status: 'accepted' }).eq('chat_id', callId);
-} catch (err) {
-notify('Ошибка установки соединения: ' + err.message);
-endCall(false);
-return;
-}
+} catch (err) { notify('Ошибка установки соединения: ' + err.message); endCall(false); return; }
 showActiveCall(incomingCallData.caller_name, getAvatarColor(incomingCallData.caller_name), 'Соединение...', getAvatarFor(callerId, incomingCallData.caller_name));
 if (callsChannel) supabase.removeChannel(callsChannel);
 callsChannel = supabase.channel(`call_${callId}`)
@@ -1355,10 +1251,7 @@ let type = registerPassword.type === 'password' ? 'text' : 'password';
 registerPassword.type = type;
 toggleRegisterPassword.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
 });
-contactsFilterInput.addEventListener('input', () => {
-contactsFilterText = contactsFilterInput.value.trim().toLowerCase();
-buildContactsList();
-});
+contactsFilterInput.addEventListener('input', () => { contactsFilterText = contactsFilterInput.value.trim().toLowerCase(); buildContactsList(); });
 function subscribeToUserData() {
 if (messagesChannel) supabase.removeChannel(messagesChannel);
 messagesChannel = supabase.channel('global_messages')
@@ -1390,10 +1283,8 @@ localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 }
 buildContactsList();
 }
-if (msg.sender_id !== myId) {
-try {
-supabase.from('messages').update({ status: 'delivered' }).eq('id', msg.id).eq('status', 'sent').then(()=>{});
-} catch(e){}
+if (msg.sender_id !== myId && messagesHasStatus) {
+try { supabase.from('messages').update({ status: 'delivered' }).eq('id', msg.id).eq('status', 'sent').then(()=>{}).catch(()=>{}); } catch(e){}
 }
 if (msg.sender_id !== myId && isWindowFocused) {
 const isCurrent = (currentRoom === 'general' && msg.chat_id === 'general') ||
@@ -1415,12 +1306,7 @@ if (textEl && msg.text !== undefined) textEl.textContent = msg.text || '';
 const editedEl = el.querySelector('.msg-edited');
 if (msg.edited && !editedEl) {
 const timeEl = el.querySelector('.message-time');
-if (timeEl) {
-const ed = document.createElement('span');
-ed.className = 'msg-edited';
-ed.textContent = 'изм.';
-timeEl.insertBefore(ed, timeEl.firstChild);
-}
+if (timeEl) { const ed = document.createElement('span'); ed.className = 'msg-edited'; ed.textContent = 'изм.'; timeEl.insertBefore(ed, timeEl.firstChild); }
 }
 if (msg.status) {
 const statusEl = el.querySelector('.msg-status');
@@ -1465,8 +1351,9 @@ div.dataset.dayKey = dayKey;
 div.textContent = formatDate(new Date(msg.created_at).getTime());
 messagesContainer.appendChild(div);
 }
-renderMessage(msg, isPrivate, msg.chat_id, false);
-if (msg.sender_id !== myId && isWindowFocused) markMessagesRead([msg.id]);
+const row = buildMessageRow(msg, isPrivate);
+if (row) messagesContainer.appendChild(row);
+messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 async function loadContacts() {
 const { data } = await supabase.from('contacts').select('contact_id').eq('owner_id', myId);
@@ -1476,21 +1363,14 @@ buildContactsList();
 }
 async function loadAllUsers() {
 const { data } = await supabase.from('users').select('*');
-allUsers = {};
-userAvatarMap = {};
-if (data) {
-data.forEach(u => { allUsers[u.id] = u; if (u.avatar_url) userAvatarMap[u.id] = u.avatar_url; });
-}
+allUsers = {}; userAvatarMap = {};
+if (data) data.forEach(u => { allUsers[u.id] = u; if (u.avatar_url) userAvatarMap[u.id] = u.avatar_url; });
 const me = allUsers[myId];
-if (me && me.avatar_url) {
-myAvatarUrl = me.avatar_url;
-localStorage.setItem('qwantum_myAvatar', myAvatarUrl);
+if (me) {
+if (me.avatar_url) { myAvatarUrl = me.avatar_url; localStorage.setItem('qwantum_myAvatar', myAvatarUrl); }
 }
-if (myAvatarUrl) {
-setAvatarElement(userAvatar, myId, myName, false);
-} else {
-setAvatarElement(userAvatar, myId, myName, false);
-}
+if (myAvatarUrl) setAvatarElement(userAvatar, myId, myName, false);
+else setAvatarElement(userAvatar, myId, myName, false);
 buildContactsList();
 if (activePrivateChatWith) {
 const online = onlineUsers.has(activePrivateChatWith);
@@ -1557,10 +1437,7 @@ attempts++;
 const passHash = hashPassword(newId, passInput);
 let insErr = null;
 let inserted = false;
-{
-const { error } = await supabase.from('users').insert({ id: newId, name: nameInput, pass_hash: passHash });
-if (!error) inserted = true; else insErr = error;
-}
+{ const { error } = await supabase.from('users').insert({ id: newId, name: nameInput, pass_hash: passHash }); if (!error) inserted = true; else insErr = error; }
 if (!inserted && insErr && /pass_hash/i.test(insErr.message || '')) {
 const { error } = await supabase.from('users').insert({ id: newId, name: nameInput });
 if (!error) inserted = true; else insErr = error;
@@ -1578,17 +1455,10 @@ generatedIdSpan.innerText = newId;
 localStorage.setItem('qwantum_tempId', newId);
 localStorage.setItem('qwantum_tempName', nameInput);
 notify('Аккаунт создан! Сохраните ваш ID');
-} catch (err) {
-console.error(err);
-notify('❌ ' + (err.message || 'Ошибка'));
-} finally {
-registerBtn.disabled = false;
-registerBtn.innerHTML = originalHtml;
-}
+} catch (err) { console.error(err); notify('❌ ' + (err.message || 'Ошибка')); }
+finally { registerBtn.disabled = false; registerBtn.innerHTML = originalHtml; }
 });
-copyIdBtn.addEventListener('click', () => {
-navigator.clipboard?.writeText(generatedIdSpan.innerText).then(() => notify('ID скопирован'));
-});
+copyIdBtn.addEventListener('click', () => { navigator.clipboard?.writeText(generatedIdSpan.innerText).then(() => notify('ID скопирован')); });
 continueAfter.addEventListener('click', () => {
 let newId = localStorage.getItem('qwantum_tempId');
 let newName = localStorage.getItem('qwantum_tempName');
@@ -1629,10 +1499,7 @@ localStorage.setItem('qwantum_myId', myId);
 localStorage.setItem('qwantum_myName', myName);
 localStorage.setItem('qwantum_isLoggedIn', 'true');
 showApp();
-} catch (e) {
-console.error(e);
-notify('❌ Ошибка входа');
-}
+} catch (e) { console.error(e); notify('❌ Ошибка входа'); }
 });
 editNameBtn.addEventListener('click', async () => {
 const newName = prompt('Введите новое имя (до 15 символов):', myName);
@@ -1701,25 +1568,14 @@ filtered.forEach(item => {
 const el = document.createElement('div');
 el.className = `contact-item ${currentRoom === item.id ? 'active' : ''}`;
 let avatar, sub;
-if (item.isGeneral) {
-avatar = `<div class="contact-avatar" style="background:#0066cc"><i class="fas fa-globe"></i></div>`;
-sub = item.lastTime ? formatTime(item.lastTime) : 'для всех';
-} else if (item.isGroup) {
-avatar = `<div class="contact-avatar group-avatar"><i class="fas fa-users"></i></div>`;
-sub = 'Группа';
-} else {
+if (item.isGeneral) { avatar = `<div class="contact-avatar" style="background:#0066cc"><i class="fas fa-globe"></i></div>`; sub = item.lastTime ? formatTime(item.lastTime) : 'для всех'; }
+else if (item.isGroup) { avatar = `<div class="contact-avatar group-avatar"><i class="fas fa-users"></i></div>`; sub = 'Группа'; }
+else {
 const url = getAvatarFor(item.uid, item.name);
 avatar = `<div class="contact-avatar" style="background:${getAvatarColor(item.name)}">${url ? `<img src="${url}" alt="">` : item.name[0].toUpperCase()}${item.online ? '<div class="status-dot"></div>' : ''}</div>`;
 sub = `ID: ${item.uid}${item.online ? ' · в сети' : ''}`;
 }
-el.innerHTML = `
-${avatar}
-<div class="contact-info">
-<div class="contact-name">${item.name}</div>
-<div class="contact-id">${sub}</div>
-</div>
-${item.unread > 0 ? `<div class="unread-badge">${item.unread}</div>` : ''}
-`;
+el.innerHTML = `${avatar}<div class="contact-info"><div class="contact-name">${item.name}</div><div class="contact-id">${sub}</div></div>${item.unread > 0 ? `<div class="unread-badge">${item.unread}</div>` : ''}`;
 el.onclick = () => {
 if (item.isGeneral) openRoom('general', 'Общий чат');
 else if (item.isGroup) openGroupChat(item.groupId, item.name);
@@ -1729,13 +1585,8 @@ contactsList.appendChild(el);
 });
 }
 function resetPagination() { messagesOffset = 0; hasMoreMessages = true; isLoadingMore = false; }
-function attachScrollListener() {
-messagesContainer.removeEventListener('scroll', onMessagesScroll);
-messagesContainer.addEventListener('scroll', onMessagesScroll);
-}
-function onMessagesScroll() {
-if (messagesContainer.scrollTop < 100 && hasMoreMessages && !isLoadingMore) loadMoreMessages();
-}
+function attachScrollListener() { messagesContainer.removeEventListener('scroll', onMessagesScroll); messagesContainer.addEventListener('scroll', onMessagesScroll); }
+function onMessagesScroll() { if (messagesContainer.scrollTop < 100 && hasMoreMessages && !isLoadingMore) loadMoreMessages(); }
 async function loadMoreMessages() {
 if (isLoadingMore || !hasMoreMessages || !currentRoom) return;
 isLoadingMore = true;
@@ -1803,12 +1654,7 @@ const wrapper = document.createElement('div');
 wrapper.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
 wrapper.id = `msg-${data.id}`;
 if (currentPinned && currentPinned.message_id === data.id) wrapper.classList.add('pinned');
-if (!isMe) {
-const nameEl = document.createElement('div');
-nameEl.className = 'msg-name';
-nameEl.textContent = data.sender_name;
-wrapper.appendChild(nameEl);
-}
+if (!isMe) { const nameEl = document.createElement('div'); nameEl.className = 'msg-name'; nameEl.textContent = data.sender_name; wrapper.appendChild(nameEl); }
 if (data.reply) {
 const quote = document.createElement('div');
 quote.className = 'reply-quote';
@@ -1854,12 +1700,7 @@ wrapper.appendChild(textEl);
 }
 const metaEl = document.createElement('div');
 metaEl.className = 'message-time';
-if (data.edited) {
-const ed = document.createElement('span');
-ed.className = 'msg-edited';
-ed.textContent = 'изм.';
-metaEl.appendChild(ed);
-}
+if (data.edited) { const ed = document.createElement('span'); ed.className = 'msg-edited'; ed.textContent = 'изм.'; metaEl.appendChild(ed); }
 const timeSpan = document.createElement('span');
 timeSpan.textContent = formatTime(new Date(data.created_at).getTime());
 metaEl.appendChild(timeSpan);
@@ -1897,26 +1738,17 @@ row.appendChild(wrapper);
 return row;
 }
 function openRoom(roomId, roomName) {
-currentRoom = roomId;
-currentChatName = roomName;
-activePrivateChatWith = null;
-currentPinned = null;
+currentRoom = roomId; currentChatName = roomName; activePrivateChatWith = null; currentPinned = null;
 pinnedBanner.classList.remove('active');
-chatName.textContent = roomName;
-chatName.onclick = null;
+chatName.textContent = roomName; chatName.onclick = null;
 chatUserId.textContent = 'Общий чат';
-chatAvatar.innerHTML = '#';
-chatAvatar.style.background = '#0066cc';
-chatAvatar.onclick = null;
-callBtn.style.display = 'none';
-historyBtn.style.display = 'none';
+chatAvatar.innerHTML = '#'; chatAvatar.style.background = '#0066cc'; chatAvatar.onclick = null;
+callBtn.style.display = 'none'; historyBtn.style.display = 'none';
 unreadCounts[roomId] = 0;
 localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
 updateTitle();
-messageInput.disabled = false;
-sendBtn.disabled = false;
-noChat.classList.add('hidden');
-activeChatDiv.classList.remove('hidden');
+messageInput.disabled = false; sendBtn.disabled = false;
+noChat.classList.add('hidden'); activeChatDiv.classList.remove('hidden');
 if (window.innerWidth <= 768) { sidebar.classList.add('hidden'); chatArea.classList.add('active'); }
 buildContactsList();
 resetPagination();
@@ -1927,10 +1759,7 @@ attachScrollListener();
 function openPrivateChat(otherId, otherName) {
 otherName = displayNameFor(otherId, otherName);
 if (!isContact(otherId)) { showUserProfile(otherId, otherName); return; }
-currentRoom = `private_${otherId}`;
-currentChatName = otherName;
-activePrivateChatWith = otherId;
-currentPinned = null;
+currentRoom = `private_${otherId}`; currentChatName = otherName; activePrivateChatWith = otherId; currentPinned = null;
 pinnedBanner.classList.remove('active');
 chatName.textContent = otherName;
 const online = onlineUsers.has(otherId);
@@ -1938,16 +1767,13 @@ chatUserId.innerHTML = online ? `<span class="online-status"><span class="status
 setAvatarElement(chatAvatar, otherId, otherName, online);
 chatAvatar.onclick = () => showUserProfile(otherId, otherName);
 chatName.onclick = () => showUserProfile(otherId, otherName);
-callBtn.style.display = 'flex';
-historyBtn.style.display = 'flex';
+callBtn.style.display = 'flex'; historyBtn.style.display = 'flex';
 const storageKey = getChatId(myId, otherId);
 unreadCounts[storageKey] = 0;
 localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
 updateTitle();
-messageInput.disabled = false;
-sendBtn.disabled = false;
-noChat.classList.add('hidden');
-activeChatDiv.classList.remove('hidden');
+messageInput.disabled = false; sendBtn.disabled = false;
+noChat.classList.add('hidden'); activeChatDiv.classList.remove('hidden');
 if (window.innerWidth <= 768) { sidebar.classList.add('hidden'); chatArea.classList.add('active'); }
 buildContactsList();
 resetPagination();
@@ -1957,26 +1783,18 @@ attachScrollListener();
 markAllReadInChat(storageKey);
 }
 function openGroupChat(groupId, groupName) {
-currentRoom = 'group_' + groupId;
-currentChatName = groupName;
-activePrivateChatWith = null;
-currentPinned = null;
+currentRoom = 'group_' + groupId; currentChatName = groupName; activePrivateChatWith = null; currentPinned = null;
 pinnedBanner.classList.remove('active');
-chatName.textContent = groupName;
-chatName.onclick = null;
+chatName.textContent = groupName; chatName.onclick = null;
 chatUserId.textContent = 'Группа';
 chatAvatar.innerHTML = groupName.charAt(0).toUpperCase();
-chatAvatar.style.background = 'linear-gradient(145deg, #7c4dff, #00b0ff)';
-chatAvatar.onclick = null;
-callBtn.style.display = 'none';
-historyBtn.style.display = 'none';
+chatAvatar.style.background = 'linear-gradient(145deg, #7c4dff, #00b0ff)'; chatAvatar.onclick = null;
+callBtn.style.display = 'none'; historyBtn.style.display = 'none';
 unreadCounts[currentRoom] = 0;
 localStorage.setItem('qwantum_unread', JSON.stringify(unreadCounts));
 updateTitle();
-messageInput.disabled = false;
-sendBtn.disabled = false;
-noChat.classList.add('hidden');
-activeChatDiv.classList.remove('hidden');
+messageInput.disabled = false; sendBtn.disabled = false;
+noChat.classList.add('hidden'); activeChatDiv.classList.remove('hidden');
 if (window.innerWidth <= 768) { sidebar.classList.add('hidden'); chatArea.classList.add('active'); }
 buildContactsList();
 resetPagination();
@@ -1987,11 +1805,8 @@ markAllReadInChat(currentRoom);
 }
 backBtn.addEventListener('click', () => {
 if (window.innerWidth <= 768) { sidebar.classList.remove('hidden'); chatArea.classList.remove('active'); }
-noChat.classList.remove('hidden');
-activeChatDiv.classList.add('hidden');
-currentRoom = null;
-currentPinned = null;
-pinnedBanner.classList.remove('active');
+noChat.classList.remove('hidden'); activeChatDiv.classList.add('hidden');
+currentRoom = null; currentPinned = null; pinnedBanner.classList.remove('active');
 messagesContainer.innerHTML = '';
 messagesContainer.removeEventListener('scroll', onMessagesScroll);
 stopRecording(true);
@@ -2040,13 +1855,8 @@ if (prepend) messagesContainer.insertBefore(row, messagesContainer.firstChild);
 else messagesContainer.appendChild(row);
 }
 function openActionMenu(data, isMe) {
-if (!isMe) {
-actPinBtn.style.display = 'block'; actEditBtn.style.display = 'none'; delAllBtn.style.display = 'none'; delMeBtn.style.display = 'none';
-actPinBtn.textContent = (currentPinned && currentPinned.message_id === data.id) ? '📌 Открепить' : '📌 Закрепить';
-} else {
-actPinBtn.style.display = 'block'; actEditBtn.style.display = data.text ? 'block' : 'none'; delAllBtn.style.display = 'block'; delMeBtn.style.display = 'block';
-actPinBtn.textContent = (currentPinned && currentPinned.message_id === data.id) ? '📌 Открепить' : '📌 Закрепить';
-}
+if (!isMe) { actPinBtn.style.display = 'block'; actEditBtn.style.display = 'none'; delAllBtn.style.display = 'none'; delMeBtn.style.display = 'none'; actPinBtn.textContent = (currentPinned && currentPinned.message_id === data.id) ? '📌 Открепить' : '📌 Закрепить'; }
+else { actPinBtn.style.display = 'block'; actEditBtn.style.display = data.text ? 'block' : 'none'; delAllBtn.style.display = 'block'; delMeBtn.style.display = 'block'; actPinBtn.textContent = (currentPinned && currentPinned.message_id === data.id) ? '📌 Открепить' : '📌 Закрепить'; }
 deleteModal.classList.add('active');
 }
 function updateTitle() {
@@ -2095,16 +1905,14 @@ pinnedChannel = supabase.channel(`pinned_${roomPath}`)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'pinned', filter: `chat_id=eq.${roomPath}` }, async () => {
 const { data } = await supabase.from('pinned').select('*').eq('chat_id', roomPath).maybeSingle();
 if (!data) { currentPinned = null; pinnedBanner.classList.remove('active'); document.querySelectorAll('.message.pinned').forEach(m => m.classList.remove('pinned')); return; }
-currentPinned = data;
-pinWho.textContent = data.who; pinText.textContent = data.text; pinnedBanner.classList.add('active');
+currentPinned = data; pinWho.textContent = data.who; pinText.textContent = data.text; pinnedBanner.classList.add('active');
 document.querySelectorAll('.message.pinned').forEach(m => m.classList.remove('pinned'));
 const el = document.getElementById(`msg-${data.message_id}`); if (el) el.classList.add('pinned');
 })
 .subscribe();
 supabase.from('pinned').select('*').eq('chat_id', roomPath).maybeSingle().then(({ data }) => {
 if (!data) { currentPinned = null; pinnedBanner.classList.remove('active'); return; }
-currentPinned = data;
-pinWho.textContent = data.who; pinText.textContent = data.text; pinnedBanner.classList.add('active');
+currentPinned = data; pinWho.textContent = data.who; pinText.textContent = data.text; pinnedBanner.classList.add('active');
 const el = document.getElementById(`msg-${data.message_id}`); if (el) el.classList.add('pinned');
 });
 }
@@ -2157,9 +1965,7 @@ recTimeEl.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String
 }
 function stopRecording(cancel) {
 if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
-if (cancel) {
-mediaRecorder.onstop = () => { if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; } audioChunks = []; mediaRecorder = null; };
-}
+if (cancel) { mediaRecorder.onstop = () => { if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; } audioChunks = []; mediaRecorder = null; }; }
 mediaRecorder.stop();
 clearInterval(recTimerInterval); recTimerInterval = null;
 micBtn.classList.remove('recording'); micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
@@ -2188,13 +1994,29 @@ const xhr = new XMLHttpRequest();
 xhr.open('POST', url);
 xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_KEY}`);
 xhr.setRequestHeader('x-upsert', 'true');
-if (file.type) xhr.setRequestHeader('Content-Type', file.type);
-else xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+if (file.type) xhr.setRequestHeader('Content-Type', file.type); else xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress((e.loaded / e.total) * 100); };
 xhr.onload = () => { if (xhr.status >= 200 && xhr.status < 300) { const { data } = supabase.storage.from('qwantum-files').getPublicUrl(fileName); resolve(data.publicUrl); } else reject(new Error('Upload failed: ' + xhr.status)); };
 xhr.onerror = () => reject(new Error('Network error'));
 xhr.send(file);
 });
+}
+async function insertMessageSafe(msgData) {
+if (messagesHasStatus) {
+const { error } = await supabase.from('messages').insert(msgData);
+if (!error) return { ok: true };
+if (/status/i.test(error.message || '') || /column/i.test(error.message || '')) {
+messagesHasStatus = false;
+console.warn('status column missing, retry without status:', error.message);
+const { status, ...withoutStatus } = msgData;
+const r2 = await supabase.from('messages').insert(withoutStatus);
+return { ok: !r2.error, error: r2.error };
+}
+return { ok: false, error };
+}
+const { status, ...withoutStatus } = msgData;
+const r2 = await supabase.from('messages').insert(withoutStatus);
+return { ok: !r2.error, error: r2.error };
 }
 async function sendVoiceBlob(blob, duration) {
 if (!currentRoom) return;
@@ -2207,11 +2029,12 @@ const isPrivate = currentRoom.startsWith('private_');
 const chatId = isPrivate ? getChatId(myId, activePrivateChatWith) : currentRoom;
 const msgData = { chat_id: chatId, sender_id: myId, sender_name: myName, text: '', file_url: publicUrl, file_name: fileName, file_type: blob.type || 'audio/webm', file_size: blob.size, duration: duration, status: 'sent' };
 if (currentReplyData) { msgData.reply = currentReplyData; currentReplyData = null; replyPreview.classList.remove('active'); }
-await supabase.from('messages').insert(msgData);
+const r = await insertMessageSafe(msgData);
+if (!r.ok) throw r.error || new Error('insert failed');
 chatLastTimes[chatId] = Date.now();
 localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 playSound('send'); hideUploadProgress(); notify('Голосовое отправлено');
-} catch (e) { console.error(e); hideUploadProgress(); notify('❌ Ошибка отправки голосового'); }
+} catch (e) { console.error(e); hideUploadProgress(); notify('❌ Ошибка отправки голосового: ' + (e.message||'')); }
 }
 async function compressImage(file, maxSizeKB) {
 return new Promise((resolve, reject) => {
@@ -2222,9 +2045,7 @@ img.onload = () => {
 const canvas = document.createElement('canvas');
 let width = img.width, height = img.height;
 const maxSide = 1200;
-if (width > maxSide || height > maxSide) {
-if (width > height) { height = Math.round(height * maxSide / width); width = maxSide; } else { width = Math.round(width * maxSide / height); height = maxSide; }
-}
+if (width > maxSide || height > maxSide) { if (width > height) { height = Math.round(height * maxSide / width); width = maxSide; } else { width = Math.round(width * maxSide / height); height = maxSide; } }
 canvas.width = width; canvas.height = height;
 const ctx = canvas.getContext('2d');
 ctx.drawImage(img, 0, 0, width, height);
@@ -2255,7 +2076,8 @@ const isPrivate = currentRoom.startsWith('private_');
 const chatId = isPrivate ? getChatId(myId, activePrivateChatWith) : currentRoom;
 const msgData = { chat_id: chatId, sender_id: myId, sender_name: myName, text: '', file_url: publicUrl, file_name: file.name, file_type: isImage ? 'image/jpeg' : file.type, file_size: fileToUpload.size, status: 'sent' };
 if (currentReplyData) { msgData.reply = currentReplyData; currentReplyData = null; replyPreview.classList.remove('active'); }
-await supabase.from('messages').insert(msgData);
+const r = await insertMessageSafe(msgData);
+if (!r.ok) throw r.error || new Error('insert failed');
 chatLastTimes[chatId] = Date.now();
 localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 notify('Файл отправлен'); playSound('send'); hideUploadProgress(); fileInput.value = '';
@@ -2270,11 +2092,12 @@ const isPrivate = currentRoom.startsWith('private_');
 const chatId = isPrivate ? getChatId(myId, activePrivateChatWith) : currentRoom;
 const msgData = { chat_id: chatId, sender_id: myId, sender_name: myName, text, status: 'sent' };
 if (currentReplyData) { msgData.reply = currentReplyData; currentReplyData = null; replyPreview.classList.remove('active'); }
-await supabase.from('messages').insert(msgData);
+const r = await insertMessageSafe(msgData);
+if (!r.ok) { console.error(r.error); notify('❌ Не удалось отправить: ' + ((r.error && r.error.message) || 'ошибка')); messageInput.value = text; return; }
 chatLastTimes[chatId] = Date.now();
 localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 playSound('send');
-await supabase.from('typing').delete().eq('user_id', myId);
+try { await supabase.from('typing').delete().eq('user_id', myId); } catch(e){}
 }
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
@@ -2282,9 +2105,9 @@ let typingTimeout;
 messageInput.addEventListener('input', () => {
 if (!currentRoom) return;
 let roomKey = currentRoom.startsWith('private_') ? getChatId(myId, activePrivateChatWith) : currentRoom;
-supabase.from('typing').upsert({ user_id: myId, name: myName, room: roomKey, updated_at: new Date().toISOString() }).then();
+supabase.from('typing').upsert({ user_id: myId, name: myName, room: roomKey, updated_at: new Date().toISOString() }).then(()=>{}).catch(()=>{});
 clearTimeout(typingTimeout);
-typingTimeout = setTimeout(() => supabase.from('typing').delete().eq('user_id', myId), 2000);
+typingTimeout = setTimeout(() => supabase.from('typing').delete().eq('user_id', myId).then(()=>{}).catch(()=>{}), 2000);
 });
 if (typingChannel) supabase.removeChannel(typingChannel);
 typingChannel = supabase.channel('global_typing')
@@ -2296,7 +2119,7 @@ supabase.from('typing').select('name, updated_at').eq('room', myRoomKey).neq('us
 const now = Date.now();
 const names = (data || []).filter(d => d.updated_at && (now - new Date(d.updated_at).getTime() < 5000)).map(d => d.name);
 typingStatus.textContent = names.length > 0 ? `${names.join(', ')} печатает...` : '';
-});
+}).catch(()=>{});
 })
 .subscribe();
 const actionsMenu = document.getElementById('actions-menu');
@@ -2308,11 +2131,7 @@ const addContactModal = document.getElementById('add-contact-modal');
 const addContactIdInput = document.getElementById('addContactId');
 const addContactAliasInput = document.getElementById('addContactAlias');
 addContactIdInput.addEventListener('input', () => { addContactIdInput.value = addContactIdInput.value.replace(/\D/g, '').slice(0, 9); });
-document.getElementById('menuAddContact').addEventListener('click', () => {
-actionsMenu.classList.remove('active');
-addContactIdInput.value = ''; addContactAliasInput.value = '';
-addContactModal.classList.add('active');
-});
+document.getElementById('menuAddContact').addEventListener('click', () => { actionsMenu.classList.remove('active'); addContactIdInput.value = ''; addContactAliasInput.value = ''; addContactModal.classList.add('active'); });
 document.getElementById('addContactCancel').addEventListener('click', () => addContactModal.classList.remove('active'));
 addContactModal.addEventListener('click', (e) => { if (e.target === addContactModal) addContactModal.classList.remove('active'); });
 document.getElementById('addContactConfirm').addEventListener('click', async () => {
@@ -2337,21 +2156,13 @@ notify('Контакт добавлен: ' + displayNameFor(uid, data[0].name));
 const createGroupModal = document.getElementById('create-group-modal');
 const groupNameInput = document.getElementById('groupNameInput');
 const groupMembersList = document.getElementById('groupMembersList');
-document.getElementById('menuCreateGroup').addEventListener('click', () => {
-actionsMenu.classList.remove('active');
-groupNameInput.value = '';
-renderGroupMembersPicker();
-createGroupModal.classList.add('active');
-});
+document.getElementById('menuCreateGroup').addEventListener('click', () => { actionsMenu.classList.remove('active'); groupNameInput.value = ''; renderGroupMembersPicker(); createGroupModal.classList.add('active'); });
 document.getElementById('createGroupCancel').addEventListener('click', () => createGroupModal.classList.remove('active'));
 createGroupModal.addEventListener('click', (e) => { if (e.target === createGroupModal) createGroupModal.classList.remove('active'); });
 function renderGroupMembersPicker() {
 groupMembersList.innerHTML = '';
 const uids = Object.keys(myContacts).filter(u => myContacts[u] && u !== myId);
-if (uids.length === 0) {
-groupMembersList.innerHTML = '<div style="color:#7f90cf;font-size:13px;padding:10px;text-align:center;">Нет контактов — группа будет только для вас</div>';
-return;
-}
+if (uids.length === 0) { groupMembersList.innerHTML = '<div style="color:#7f90cf;font-size:13px;padding:10px;text-align:center;">Нет контактов — группа будет только для вас</div>'; return; }
 uids.forEach(uid => {
 const u = allUsers[uid] || { name: 'ID ' + uid };
 const row = document.createElement('label');
@@ -2375,9 +2186,11 @@ try { await supabase.from('messages').insert({ chat_id: 'group_' + id, sender_id
 });
 async function markMessagesRead(ids) {
 if (!ids || ids.length === 0) return;
+if (!messagesHasStatus) return;
 try { await supabase.from('messages').update({ status: 'read' }).in('id', ids); } catch (e) { console.warn('mark read failed', e); }
 }
 async function markAllReadInChat(chatId) {
+if (!messagesHasStatus) return;
 try {
 const { data } = await supabase.from('messages').select('id').eq('chat_id', chatId).neq('sender_id', myId).neq('status', 'read');
 if (data && data.length > 0) {
@@ -2386,6 +2199,16 @@ await supabase.from('messages').update({ status: 'read' }).in('id', ids);
 }
 } catch (e) { console.warn('markAllRead failed', e); }
 }
+(async () => {
+try {
+const { error } = await supabase.from('messages').select('id').limit(1);
+if (error) console.warn('messages check:', error.message);
+const { error: e2 } = await supabase.from('users').select('id,bio').limit(1);
+if (e2 && /bio/i.test(e2.message || '')) { usersHasBio = false; console.warn('users.bio отсутствует — описание будет локальным'); }
+const { error: e3 } = await supabase.from('messages').select('id,status').limit(1);
+if (e3 && /status/i.test(e3.message || '')) { messagesHasStatus = false; console.warn('messages.status отсутствует — галочки будут sent только'); }
+} catch(e) { console.warn(e); }
+})();
 updateTitle();
 </script>
 </body>
