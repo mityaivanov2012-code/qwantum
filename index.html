@@ -643,9 +643,6 @@ let incomingCallData = null;
 let isMuted = false;
 let incomingCallWatcher = null;
 let outgoingCallWatcher = null;
-let lastSeenHeartbeat = null;
-let ringTimeoutId = null;
-let ringingSince = {};
 let callSubscriptions = [];
 let currentCallRecordedId = null;
 let remoteCandidateQueue = [];
@@ -806,24 +803,6 @@ const i = Math.floor(Math.log(bytes) / Math.log(k));
 return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 function isContact(uid) { return !!(myContacts && myContacts[uid]); }
-function lastSeenLabel(uid) {
-const u = allUsers[uid];
-if (!u || !u.last_seen) return 'не в сети';
-const ts = new Date(u.last_seen).getTime();
-if (isNaN(ts)) return 'не в сети';
-const mins = Math.floor((Date.now() - ts) / 60000);
-if (mins < 1) return 'не в сети · был(а) только что';
-if (mins < 60) return `не в сети · был(а) ${mins} мин назад`;
-const hours = Math.floor(mins / 60);
-if (hours < 24) return `не в сети · был(а) ${hours} ч назад`;
-return 'не в сети · был(а) давно';
-}
-function refreshChatPresence() {
-if (!activePrivateChatWith) return;
-const online = onlineUsers.has(activePrivateChatWith);
-chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">${lastSeenLabel(activePrivateChatWith)}</span>`;
-}
-setInterval(refreshChatPresence, 30000);
 function initPresence() {
 if (presenceChannel) supabase.removeChannel(presenceChannel);
 presenceChannel = supabase.channel('online-users', {
@@ -834,7 +813,10 @@ presenceChannel
 const state = presenceChannel.presenceState();
 onlineUsers = new Set(Object.keys(state));
 buildContactsList();
-if (activePrivateChatWith) refreshChatPresence();
+if (activePrivateChatWith) {
+const online = onlineUsers.has(activePrivateChatWith);
+chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
+}
 })
 .on('presence', { event: 'join' }, ({ key }) => {
 onlineUsers.add(key);
@@ -1148,7 +1130,6 @@ callTimerEl.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:
 }, 1000);
 }
 function cleanupCall() {
-if (ringTimeoutId) { clearTimeout(ringTimeoutId); ringTimeoutId = null; }
 if (iceRestartTimeout) { clearTimeout(iceRestartTimeout); iceRestartTimeout = null; }
 if (pc) { pc.close(); pc = null; }
 if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
@@ -1166,8 +1147,8 @@ callStartTime = null;
 remoteCandidateQueue = [];
 muteCallBtn.classList.remove('muted');
 muteCallBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-if (incomingCallWatcher) { try { supabase.removeChannel(incomingCallWatcher); } catch(e){} incomingCallWatcher = null; }
-if (outgoingCallWatcher) { try { supabase.removeChannel(outgoingCallWatcher); } catch(e){} outgoingCallWatcher = null; }
+if (incomingCallWatcher) { try { incomingCallWatcher(); } catch(e){} incomingCallWatcher = null; }
+if (outgoingCallWatcher) { try { outgoingCallWatcher(); } catch(e){} outgoingCallWatcher = null; }
 }
 function endCall(notifyOther = true) {
 const callId = currentCallWith ? getChatId(myId, currentCallWith) : null;
@@ -1184,15 +1165,6 @@ callsChannel = supabase.channel('global_calls')
 if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
 const call = payload.new;
 if (call.callee_id === myId && call.status === 'ringing' && !incomingCallDiv.classList.contains('active') && !pc) {
-if (!ringingSince[call.chat_id]) ringingSince[call.chat_id] = Date.now();
-if (Date.now() - ringingSince[call.chat_id] > 120000) {
-writeCallHistory('incoming', 'missed', 0, call.caller_id);
-notify('Пропущенный звонок от ' + call.caller_name);
-supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', call.chat_id).then();
-setTimeout(() => { supabase.from('calls').delete().eq('chat_id', call.chat_id).then(); }, 1000);
-delete ringingSince[call.chat_id];
-return;
-}
 incomingCallData = { callId: call.chat_id, ...call };
 incomingAvatar.textContent = call.caller_name.charAt(0).toUpperCase();
 incomingAvatar.style.background = getAvatarColor(call.caller_name);
@@ -1202,17 +1174,6 @@ incomingCallDiv.classList.add('active');
 unlockAudio();
 playSound('ring');
 setTimeout(() => playSound('ring'), 600);
-if (ringTimeoutId) clearTimeout(ringTimeoutId);
-ringTimeoutId = setTimeout(() => {
-if (!incomingCallData || !incomingCallDiv.classList.contains('active')) return;
-writeCallHistory('incoming', 'missed', 0, incomingCallData.caller_id);
-supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', incomingCallData.callId).then();
-setTimeout(() => { supabase.from('calls').delete().eq('chat_id', incomingCallData.callId).then(); }, 1000);
-incomingCallDiv.classList.remove('active');
-incomingCallData = null;
-if (incomingCallWatcher) { supabase.removeChannel(incomingCallWatcher); incomingCallWatcher = null; }
-notify('Пропущенный звонок');
-}, 60000);
 if (incomingCallWatcher) supabase.removeChannel(incomingCallWatcher);
 incomingCallWatcher = supabase.channel(`watch_call_${call.chat_id}`)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'calls', filter: `chat_id=eq.${call.chat_id}` }, (p) => {
@@ -1244,7 +1205,6 @@ incomingCallData = null;
 }
 acceptCallBtn.addEventListener('click', async () => {
 if (!incomingCallData) return;
-if (ringTimeoutId) { clearTimeout(ringTimeoutId); ringTimeoutId = null; }
 unlockAudio();
 if (!(await requestMicAndStart())) {
 supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', incomingCallData.callId).then();
@@ -1309,7 +1269,6 @@ endCall(false);
 .subscribe();
 });
 rejectCallBtn.addEventListener('click', () => {
-if (ringTimeoutId) { clearTimeout(ringTimeoutId); ringTimeoutId = null; }
 if (incomingCallData) {
 writeCallHistory('incoming', 'rejected', 0, incomingCallData.caller_id);
 supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', incomingCallData.callId).then();
@@ -1327,8 +1286,6 @@ localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
 muteCallBtn.classList.toggle('muted', isMuted);
 muteCallBtn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
 });
-window.addEventListener('beforeunload', () => { if (currentCallWith) endCall(true); });
-window.addEventListener('pagehide', () => { if (currentCallWith) endCall(true); });
 function showRegister() { loginForm.classList.add('hidden'); registerForm.classList.remove('hidden'); userIdDisplay.classList.add('hidden'); }
 function showLogin() { loginForm.classList.remove('hidden'); registerForm.classList.add('hidden'); userIdDisplay.classList.add('hidden'); }
 switchToReg.addEventListener('click', showRegister);
@@ -1478,7 +1435,10 @@ const { data } = await supabase.from('users').select('*');
 allUsers = {};
 if (data) data.forEach(u => allUsers[u.id] = u);
 buildContactsList();
-if (activePrivateChatWith) refreshChatPresence();
+if (activePrivateChatWith) {
+const online = onlineUsers.has(activePrivateChatWith);
+chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
+}
 }
 function otherIdFromChatKey(key) {
 if (!key || !myId) return null;
@@ -1498,19 +1458,10 @@ userSidebarId.textContent = myId;
 userAvatar.addEventListener('click', () => showUserProfile(myId, myName));
 userNameSpan.addEventListener('click', () => showUserProfile(myId, myName));
 initPresence();
-supabase.from('users').update({ online: true, last_seen: new Date().toISOString() }).eq('id', myId).then();
-if (lastSeenHeartbeat) clearInterval(lastSeenHeartbeat);
-lastSeenHeartbeat = setInterval(() => { supabase.from('users').update({ last_seen: new Date().toISOString(), online: true }).eq('id', myId).then(); }, 60000);
 loadContacts();
 loadAllUsers();
 listenIncomingCalls();
 subscribeToUserData();
-flushPendingSends();
-(async () => {
-try {
-await supabase.from('calls').delete().or(`caller_id.eq.${myId},and(callee_id.eq.${myId},status.neq.ringing)`);
-} catch (e) { console.warn('stale calls cleanup', e); }
-})();
 (async () => {
 try {
 const { data } = await supabase.from('messages')
@@ -1555,6 +1506,11 @@ let inserted = false;
 // попытка 1: с pass_hash
 {
 const { error } = await supabase.from('users').insert({ id: newId, name: nameInput, pass_hash: passHash });
+if (!error) inserted = true; else insErr = error;
+}
+// попытка 2: без pass_hash (если колонки нет)
+if (!inserted && insErr && /pass_hash/i.test(insErr.message || '')) {
+const { error } = await supabase.from('users').insert({ id: newId, name: nameInput });
 if (!error) inserted = true; else insErr = error;
 }
 if (!inserted) {
@@ -1612,8 +1568,12 @@ if (error) { notify('❌ Ошибка сервера: ' + error.message); return
 if (data && data.length > 0) found = data[0];
 }
 if (!found) { notify('Неверный ID/имя или пароль'); return; }
-if (!found.pass_hash) { notify('❌ Для этого аккаунта нет хеша пароля: добавьте колонку pass_hash (text) в таблицу users'); return; }
-const ok = (found.pass_hash === hashPassword(found.id, passInput)) || (found.pass_hash === simpleHash(passInput));
+let ok = false;
+if (found.pass_hash) {
+ok = (found.pass_hash === hashPassword(found.id, passInput)) || (found.pass_hash === simpleHash(passInput));
+} else {
+ok = true;
+}
 if (!ok) { notify('Неверный ID/имя или пароль'); return; }
 myId = found.id; myName = found.name;
 localStorage.setItem('qwantum_myId', myId);
@@ -1644,7 +1604,6 @@ notify('Имя изменено');
 logoutBtn.addEventListener('click', async () => {
 if (confirm('Выйти из аккаунта?')) {
 await supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
-if (lastSeenHeartbeat) clearInterval(lastSeenHeartbeat);
 if (presenceChannel) await presenceChannel.untrack();
 localStorage.removeItem('qwantum_myId');
 localStorage.removeItem('qwantum_myName');
@@ -1964,7 +1923,8 @@ activePrivateChatWith = otherId;
 currentPinned = null;
 pinnedBanner.classList.remove('active');
 chatName.textContent = otherName;
-chatUserId.innerHTML = onlineUsers.has(otherId) ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">${lastSeenLabel(otherId)}</span>`;
+const online = onlineUsers.has(otherId);
+chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
 chatAvatar.textContent = otherName.charAt(0).toUpperCase();
 chatAvatar.style.background = getAvatarColor(otherName);
 chatAvatar.innerHTML = `${otherName.charAt(0).toUpperCase()}${online ? '<div class="status-dot"></div>' : ''}`;
@@ -2452,22 +2412,6 @@ hideUploadProgress();
 notify('Ошибка загрузки: ' + (error.message || 'неизвестная ошибка'));
 }
 });
-let pendingSends = [];
-try { pendingSends = JSON.parse(localStorage.getItem('qwantum_pending') || '[]'); } catch (e) { pendingSends = []; }
-function savePendingSends() { try { localStorage.setItem('qwantum_pending', JSON.stringify(pendingSends)); } catch (e) {} }
-async function flushPendingSends() {
-if (pendingSends.length === 0) return;
-const batch = pendingSends.slice();
-const failed = [];
-for (const m of batch) {
-const { error } = await supabase.from('messages').insert(m);
-if (error) failed.push(m);
-}
-pendingSends = failed;
-savePendingSends();
-if (batch.length > failed.length) notify('Отправлено из очереди: ' + (batch.length - failed.length));
-}
-window.addEventListener('online', flushPendingSends);
 async function sendMessage() {
 if (!currentRoom) return notify('Выберите чат');
 const text = messageInput.value.trim();
@@ -2481,17 +2425,11 @@ msgData.reply = currentReplyData;
 currentReplyData = null;
 replyPreview.classList.remove('active');
 }
-const { error: sendErr } = await supabase.from('messages').insert(msgData);
-if (sendErr) {
-pendingSends.push(msgData);
-savePendingSends();
-notify('Нет связи — сообщение отправится, когда связь вернётся');
-} else {
+await supabase.from('messages').insert(msgData);
 chatLastTimes[chatId] = Date.now();
 localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 playSound('send');
 await supabase.from('typing').delete().eq('user_id', myId);
-}
 }
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => {
