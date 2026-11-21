@@ -199,12 +199,7 @@ border-radius: 50%; animation: spin 0.8s linear infinite;
 .msg-status.sent { color: #9aabdd; }
 .msg-status.delivered { color: #9aabdd; }
 .msg-status.read { color: #00e676; }
-.msg-name { font-size: 12px; color: #a5b7f0; margin-bottom: 4px; font-weight: bold; display: flex; align-items: center; gap: 6px; }
-.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-.profile-avatar-big { position: relative; overflow: hidden; cursor: pointer; }
-.call-avatar { position: relative; overflow: hidden; }
-.msg-avatar { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-.contact-avatar .status-dot, .chat-avatar .status-dot, .user-avatar .status-dot { z-index: 2; }
+.msg-name { font-size: 12px; color: #a5b7f0; margin-bottom: 4px; font-weight: bold; }
 .msg-edited { font-size: 10px; color: #a0d0ff; margin-left: 4px; font-style: italic; }
 .reply-quote { background: rgba(0,0,0,0.25); border-left: 3px solid var(--accent); padding: 5px 8px; margin-bottom: 6px; border-radius: 4px; font-size: 13px; color: #c0d0ff; }
 .reply-quote .quote-name { font-weight: bold; color: var(--accent); display: block; font-size: 11px; }
@@ -523,11 +518,9 @@ body { padding: 0; }
 <div class="profile-id-big" id="profile-id-big">ID: 000000000</div>
 <button class="modal-btn add" id="profile-add" style="display:none;"><i class="fas fa-user-plus"></i> Добавить контакт</button>
 <button class="modal-btn remove" id="profile-remove" style="display:none;"><i class="fas fa-user-minus"></i> Удалить из контактов</button>
-<button class="modal-btn cancel" id="profile-change-avatar" style="display:none;"><i class="fas fa-camera"></i> Сменить аватар</button>
 <button class="modal-btn cancel" id="profile-close">Закрыть</button>
 </div>
 </div>
-<input type="file" id="avatar-input" accept="image/*" style="display:none">
 <div id="history-modal">
 <div class="modal-content">
 <h3><i class="fas fa-clock-rotate-left"></i> История звонков</h3>
@@ -650,6 +643,9 @@ let incomingCallData = null;
 let isMuted = false;
 let incomingCallWatcher = null;
 let outgoingCallWatcher = null;
+let lastSeenHeartbeat = null;
+let ringTimeoutId = null;
+let ringingSince = {};
 let callSubscriptions = [];
 let currentCallRecordedId = null;
 let remoteCandidateQueue = [];
@@ -733,32 +729,6 @@ const profileIdBig = document.getElementById('profile-id-big');
 const profileAddBtn = document.getElementById('profile-add');
 const profileRemoveBtn = document.getElementById('profile-remove');
 const profileCloseBtn = document.getElementById('profile-close');
-const profileChangeAvatarBtn = document.getElementById('profile-change-avatar');
-const avatarInput = document.getElementById('avatar-input');
-let myAvatarUrl = null;
-profileChangeAvatarBtn.addEventListener('click', () => avatarInput.click());
-avatarInput.addEventListener('change', async () => {
-const file = avatarInput.files && avatarInput.files[0];
-avatarInput.value = '';
-if (!file) return;
-if (!file.type.startsWith('image/')) return notify('Выберите изображение');
-try {
-const dataUrl = await resizeImageFile(file);
-const { error } = await supabase.from('users').update({ avatar_url: dataUrl }).eq('id', myId);
-if (error) {
-if (/column|avatar_url/i.test(error.message || '')) notify('Нет колонки avatar_url в таблице users (text)');
-else throw error;
-return;
-}
-myAvatarUrl = dataUrl;
-if (allUsers[myId]) allUsers[myId].avatar_url = dataUrl;
-applyAvatarEverywhere();
-notify('Аватар обновлён');
-} catch (e) {
-console.error(e);
-notify('Не удалось загрузить аватар: ' + (e.message || ''));
-}
-});
 let profileTargetId = null;
 let profileTargetName = null;
 const historyModal = document.getElementById('history-modal');
@@ -790,50 +760,6 @@ function getAvatarColor(name) {
 let hash = 0;
 for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
 return `hsl(${hash % 360}, 70%, 50%)`;
-}
-function avatarInner(url, letter) {
-return url ? `<img class="avatar-img" src="${url}" alt="">` : letter;
-}
-function setAvatarElement(el, url, letter, dotHtml) {
-el.innerHTML = (url ? `<img class="avatar-img" src="${url}" alt="">` : letter) + (dotHtml || '');
-}
-function applyAvatarEverywhere() {
-if (myName) setAvatarElement(userAvatar, myAvatarUrl, myName.charAt(0).toUpperCase());
-buildContactsList();
-if (activePrivateChatWith) {
-const pu = allUsers[activePrivateChatWith];
-const nm = pu ? pu.name : 'ID ' + activePrivateChatWith;
-setAvatarElement(chatAvatar, pu && pu.avatar_url, nm.charAt(0).toUpperCase(), onlineUsers.has(activePrivateChatWith) ? '<div class="status-dot"></div>' : '');
-}
-if (profileTargetId) {
-const pu = allUsers[profileTargetId];
-setAvatarElement(profileAvatarBig, pu && pu.avatar_url, (pu ? pu.name : profileTargetName).charAt(0).toUpperCase());
-}
-document.querySelectorAll('.msg-avatar').forEach(img => {
-const u = allUsers[img.dataset.uid];
-if (u && u.avatar_url) img.src = u.avatar_url;
-});
-}
-async function resizeImageFile(file) {
-const dataUrl = await new Promise((res, rej) => {
-const r = new FileReader();
-r.onload = () => res(r.result);
-r.onerror = rej;
-r.readAsDataURL(file);
-});
-const img = await new Promise((res, rej) => {
-const i = new Image();
-i.onload = () => res(i);
-i.onerror = rej;
-i.src = dataUrl;
-});
-const max = 256;
-let w = img.width, h = img.height;
-if (w > h) { h = Math.round(h * max / w); w = max; } else { w = Math.round(w * max / h); h = max; }
-const canvas = document.createElement('canvas');
-canvas.width = w; canvas.height = h;
-canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-return canvas.toDataURL('image/jpeg', 0.82);
 }
 function formatTime(timestamp) {
 if (!timestamp) return '';
@@ -880,6 +806,24 @@ const i = Math.floor(Math.log(bytes) / Math.log(k));
 return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 function isContact(uid) { return !!(myContacts && myContacts[uid]); }
+function lastSeenLabel(uid) {
+const u = allUsers[uid];
+if (!u || !u.last_seen) return 'не в сети';
+const ts = new Date(u.last_seen).getTime();
+if (isNaN(ts)) return 'не в сети';
+const mins = Math.floor((Date.now() - ts) / 60000);
+if (mins < 1) return 'не в сети · был(а) только что';
+if (mins < 60) return `не в сети · был(а) ${mins} мин назад`;
+const hours = Math.floor(mins / 60);
+if (hours < 24) return `не в сети · был(а) ${hours} ч назад`;
+return 'не в сети · был(а) давно';
+}
+function refreshChatPresence() {
+if (!activePrivateChatWith) return;
+const online = onlineUsers.has(activePrivateChatWith);
+chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">${lastSeenLabel(activePrivateChatWith)}</span>`;
+}
+setInterval(refreshChatPresence, 30000);
 function initPresence() {
 if (presenceChannel) supabase.removeChannel(presenceChannel);
 presenceChannel = supabase.channel('online-users', {
@@ -890,10 +834,7 @@ presenceChannel
 const state = presenceChannel.presenceState();
 onlineUsers = new Set(Object.keys(state));
 buildContactsList();
-if (activePrivateChatWith) {
-const online = onlineUsers.has(activePrivateChatWith);
-chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
-}
+if (activePrivateChatWith) refreshChatPresence();
 })
 .on('presence', { event: 'join' }, ({ key }) => {
 onlineUsers.add(key);
@@ -912,8 +853,8 @@ await presenceChannel.track({ online_at: new Date().toISOString() });
 function showUserProfile(uid, name) {
 profileTargetId = uid;
 profileTargetName = name;
-const avU = allUsers[uid];
-setAvatarElement(profileAvatarBig, avU && avU.avatar_url, name.charAt(0).toUpperCase());
+profileAvatarBig.textContent = name.charAt(0).toUpperCase();
+profileAvatarBig.style.background = getAvatarColor(name);
 profileNameBig.textContent = displayNameFor(uid, name);
 profileIdBig.textContent = 'ID: ' + uid;
 const isSelf = uid === myId;
@@ -927,7 +868,6 @@ profileRemoveBtn.style.display = 'block';
 profileAddBtn.style.display = 'block';
 profileRemoveBtn.style.display = 'none';
 }
-profileChangeAvatarBtn.style.display = isSelf ? 'block' : 'none';
 profileModal.classList.add('active');
 }
 profileAddBtn.addEventListener('click', async () => {
@@ -1150,7 +1090,7 @@ chat_id: callId, caller_id: myId, caller_name: myName,
 callee_id: currentCallWith, callee_name: otherName,
 offer: { type: offer.type, sdp: offer.sdp }, status: 'ringing'
 });
-showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...', allUsers[currentCallWith] && allUsers[currentCallWith].avatar_url);
+showActiveCall(otherName, getAvatarColor(otherName), 'Вызов...');
 listenForAnswer(callId);
 subscribeCandidates(callId, currentCallWith);
 iceRestartTimeout = setTimeout(() => {
@@ -1190,9 +1130,10 @@ activeStatus.textContent = 'Соединение...';
 })
 .subscribe();
 }
-function showActiveCall(name, color, status, avUrl) {
+function showActiveCall(name, color, status) {
 activeCallDiv.classList.add('active');
-setAvatarElement(activeAvatar, avUrl, name.charAt(0).toUpperCase());
+activeAvatar.textContent = name.charAt(0).toUpperCase();
+activeAvatar.style.background = color;
 activeName.textContent = name;
 activeStatus.textContent = status;
 callTimerEl.textContent = '00:00';
@@ -1207,6 +1148,7 @@ callTimerEl.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:
 }, 1000);
 }
 function cleanupCall() {
+if (ringTimeoutId) { clearTimeout(ringTimeoutId); ringTimeoutId = null; }
 if (iceRestartTimeout) { clearTimeout(iceRestartTimeout); iceRestartTimeout = null; }
 if (pc) { pc.close(); pc = null; }
 if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
@@ -1224,8 +1166,8 @@ callStartTime = null;
 remoteCandidateQueue = [];
 muteCallBtn.classList.remove('muted');
 muteCallBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-if (incomingCallWatcher) { try { incomingCallWatcher(); } catch(e){} incomingCallWatcher = null; }
-if (outgoingCallWatcher) { try { outgoingCallWatcher(); } catch(e){} outgoingCallWatcher = null; }
+if (incomingCallWatcher) { try { supabase.removeChannel(incomingCallWatcher); } catch(e){} incomingCallWatcher = null; }
+if (outgoingCallWatcher) { try { supabase.removeChannel(outgoingCallWatcher); } catch(e){} outgoingCallWatcher = null; }
 }
 function endCall(notifyOther = true) {
 const callId = currentCallWith ? getChatId(myId, currentCallWith) : null;
@@ -1242,15 +1184,35 @@ callsChannel = supabase.channel('global_calls')
 if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
 const call = payload.new;
 if (call.callee_id === myId && call.status === 'ringing' && !incomingCallDiv.classList.contains('active') && !pc) {
+if (!ringingSince[call.chat_id]) ringingSince[call.chat_id] = Date.now();
+if (Date.now() - ringingSince[call.chat_id] > 120000) {
+writeCallHistory('incoming', 'missed', 0, call.caller_id);
+notify('Пропущенный звонок от ' + call.caller_name);
+supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', call.chat_id).then();
+setTimeout(() => { supabase.from('calls').delete().eq('chat_id', call.chat_id).then(); }, 1000);
+delete ringingSince[call.chat_id];
+return;
+}
 incomingCallData = { callId: call.chat_id, ...call };
-const ic = allUsers[call.caller_id];
-setAvatarElement(incomingAvatar, ic && ic.avatar_url, call.caller_name.charAt(0).toUpperCase());
+incomingAvatar.textContent = call.caller_name.charAt(0).toUpperCase();
+incomingAvatar.style.background = getAvatarColor(call.caller_name);
 incomingName.textContent = call.caller_name;
 incomingStatus.textContent = 'Входящий аудиозвонок...';
 incomingCallDiv.classList.add('active');
 unlockAudio();
 playSound('ring');
 setTimeout(() => playSound('ring'), 600);
+if (ringTimeoutId) clearTimeout(ringTimeoutId);
+ringTimeoutId = setTimeout(() => {
+if (!incomingCallData || !incomingCallDiv.classList.contains('active')) return;
+writeCallHistory('incoming', 'missed', 0, incomingCallData.caller_id);
+supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', incomingCallData.callId).then();
+setTimeout(() => { supabase.from('calls').delete().eq('chat_id', incomingCallData.callId).then(); }, 1000);
+incomingCallDiv.classList.remove('active');
+incomingCallData = null;
+if (incomingCallWatcher) { supabase.removeChannel(incomingCallWatcher); incomingCallWatcher = null; }
+notify('Пропущенный звонок');
+}, 60000);
 if (incomingCallWatcher) supabase.removeChannel(incomingCallWatcher);
 incomingCallWatcher = supabase.channel(`watch_call_${call.chat_id}`)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'calls', filter: `chat_id=eq.${call.chat_id}` }, (p) => {
@@ -1282,6 +1244,7 @@ incomingCallData = null;
 }
 acceptCallBtn.addEventListener('click', async () => {
 if (!incomingCallData) return;
+if (ringTimeoutId) { clearTimeout(ringTimeoutId); ringTimeoutId = null; }
 unlockAudio();
 if (!(await requestMicAndStart())) {
 supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', incomingCallData.callId).then();
@@ -1329,7 +1292,7 @@ notify('Ошибка установки соединения: ' + err.message);
 endCall(false);
 return;
 }
-showActiveCall(incomingCallData.caller_name, getAvatarColor(incomingCallData.caller_name), 'Соединение...', (allUsers[incomingCallData.caller_id] && allUsers[incomingCallData.caller_id].avatar_url));
+showActiveCall(incomingCallData.caller_name, getAvatarColor(incomingCallData.caller_name), 'Соединение...');
 if (callsChannel) supabase.removeChannel(callsChannel);
 callsChannel = supabase.channel(`call_${callId}`)
 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls', filter: `chat_id=eq.${callId}` }, (payload) => {
@@ -1346,6 +1309,7 @@ endCall(false);
 .subscribe();
 });
 rejectCallBtn.addEventListener('click', () => {
+if (ringTimeoutId) { clearTimeout(ringTimeoutId); ringTimeoutId = null; }
 if (incomingCallData) {
 writeCallHistory('incoming', 'rejected', 0, incomingCallData.caller_id);
 supabase.from('calls').update({ status: 'rejected' }).eq('chat_id', incomingCallData.callId).then();
@@ -1363,6 +1327,8 @@ localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
 muteCallBtn.classList.toggle('muted', isMuted);
 muteCallBtn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
 });
+window.addEventListener('beforeunload', () => { if (currentCallWith) endCall(true); });
+window.addEventListener('pagehide', () => { if (currentCallWith) endCall(true); });
 function showRegister() { loginForm.classList.add('hidden'); registerForm.classList.remove('hidden'); userIdDisplay.classList.add('hidden'); }
 function showLogin() { loginForm.classList.remove('hidden'); registerForm.classList.add('hidden'); userIdDisplay.classList.add('hidden'); }
 switchToReg.addEventListener('click', showRegister);
@@ -1511,12 +1477,8 @@ async function loadAllUsers() {
 const { data } = await supabase.from('users').select('*');
 allUsers = {};
 if (data) data.forEach(u => allUsers[u.id] = u);
-myAvatarUrl = (allUsers[myId] && allUsers[myId].avatar_url) || null;
-applyAvatarEverywhere();
-if (activePrivateChatWith) {
-const online = onlineUsers.has(activePrivateChatWith);
-chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
-}
+buildContactsList();
+if (activePrivateChatWith) refreshChatPresence();
 }
 function otherIdFromChatKey(key) {
 if (!key || !myId) return null;
@@ -1530,15 +1492,25 @@ function showApp() {
 authPage.classList.add('hidden');
 messengerInterface.classList.remove('hidden');
 userNameSpan.textContent = myName;
-setAvatarElement(userAvatar, myAvatarUrl, myName.charAt(0).toUpperCase());
+userAvatar.textContent = myName.charAt(0).toUpperCase();
+userAvatar.style.background = getAvatarColor(myName);
 userSidebarId.textContent = myId;
 userAvatar.addEventListener('click', () => showUserProfile(myId, myName));
 userNameSpan.addEventListener('click', () => showUserProfile(myId, myName));
 initPresence();
+supabase.from('users').update({ online: true, last_seen: new Date().toISOString() }).eq('id', myId).then();
+if (lastSeenHeartbeat) clearInterval(lastSeenHeartbeat);
+lastSeenHeartbeat = setInterval(() => { supabase.from('users').update({ last_seen: new Date().toISOString(), online: true }).eq('id', myId).then(); }, 60000);
 loadContacts();
 loadAllUsers();
 listenIncomingCalls();
 subscribeToUserData();
+flushPendingSends();
+(async () => {
+try {
+await supabase.from('calls').delete().or(`caller_id.eq.${myId},and(callee_id.eq.${myId},status.neq.ringing)`);
+} catch (e) { console.warn('stale calls cleanup', e); }
+})();
 (async () => {
 try {
 const { data } = await supabase.from('messages')
@@ -1583,11 +1555,6 @@ let inserted = false;
 // попытка 1: с pass_hash
 {
 const { error } = await supabase.from('users').insert({ id: newId, name: nameInput, pass_hash: passHash });
-if (!error) inserted = true; else insErr = error;
-}
-// попытка 2: без pass_hash (если колонки нет)
-if (!inserted && insErr && /pass_hash/i.test(insErr.message || '')) {
-const { error } = await supabase.from('users').insert({ id: newId, name: nameInput });
 if (!error) inserted = true; else insErr = error;
 }
 if (!inserted) {
@@ -1645,12 +1612,8 @@ if (error) { notify('❌ Ошибка сервера: ' + error.message); return
 if (data && data.length > 0) found = data[0];
 }
 if (!found) { notify('Неверный ID/имя или пароль'); return; }
-let ok = false;
-if (found.pass_hash) {
-ok = (found.pass_hash === hashPassword(found.id, passInput)) || (found.pass_hash === simpleHash(passInput));
-} else {
-ok = true;
-}
+if (!found.pass_hash) { notify('❌ Для этого аккаунта нет хеша пароля: добавьте колонку pass_hash (text) в таблицу users'); return; }
+const ok = (found.pass_hash === hashPassword(found.id, passInput)) || (found.pass_hash === simpleHash(passInput));
 if (!ok) { notify('Неверный ID/имя или пароль'); return; }
 myId = found.id; myName = found.name;
 localStorage.setItem('qwantum_myId', myId);
@@ -1672,7 +1635,8 @@ if (existing && existing.length > 0) return notify('Это имя уже зан�
 myName = trimmed;
 localStorage.setItem('qwantum_myName', myName);
 userNameSpan.textContent = myName;
-setAvatarElement(userAvatar, myAvatarUrl, myName.charAt(0).toUpperCase());
+userAvatar.textContent = myName.charAt(0).toUpperCase();
+userAvatar.style.background = getAvatarColor(myName);
 await supabase.from('users').update({ name: myName }).eq('id', myId);
 notify('Имя изменено');
 }
@@ -1680,6 +1644,7 @@ notify('Имя изменено');
 logoutBtn.addEventListener('click', async () => {
 if (confirm('Выйти из аккаунта?')) {
 await supabase.from('users').update({ online: false, last_seen: new Date().toISOString() }).eq('id', myId);
+if (lastSeenHeartbeat) clearInterval(lastSeenHeartbeat);
 if (presenceChannel) await presenceChannel.untrack();
 localStorage.removeItem('qwantum_myId');
 localStorage.removeItem('qwantum_myName');
@@ -1746,8 +1711,7 @@ sub = item.lastTime ? formatTime(item.lastTime) : 'для всех';
 avatar = `<div class="contact-avatar group-avatar"><i class="fas fa-users"></i></div>`;
 sub = 'Группа';
 } else {
-const cu = allUsers[item.uid];
-avatar = `<div class="contact-avatar" style="background:${getAvatarColor(item.name)}">${avatarInner(cu && cu.avatar_url, item.name[0].toUpperCase())}${item.online ? '<div class="status-dot"></div>' : ''}</div>`;
+avatar = `<div class="contact-avatar" style="background:${getAvatarColor(item.name)}">${item.name[0].toUpperCase()}${item.online ? '<div class="status-dot"></div>' : ''}</div>`;
 sub = `ID: ${item.uid}${item.online ? ' · в сети' : ''}`;
 }
 el.innerHTML = `
@@ -1860,17 +1824,7 @@ if (currentPinned && currentPinned.message_id === data.id) wrapper.classList.add
 if (!isMe) {
 const nameEl = document.createElement('div');
 nameEl.className = 'msg-name';
-const su = allUsers[data.sender_id];
-if (su && su.avatar_url) {
-const sav = document.createElement('img');
-sav.className = 'msg-avatar';
-sav.src = su.avatar_url;
-sav.dataset.uid = data.sender_id;
-nameEl.appendChild(sav);
-}
-const nmSpan = document.createElement('span');
-nmSpan.textContent = data.sender_name;
-nameEl.appendChild(nmSpan);
+nameEl.textContent = data.sender_name;
 wrapper.appendChild(nameEl);
 }
 if (data.reply) {
@@ -2010,10 +1964,10 @@ activePrivateChatWith = otherId;
 currentPinned = null;
 pinnedBanner.classList.remove('active');
 chatName.textContent = otherName;
-const online = onlineUsers.has(otherId);
-chatUserId.innerHTML = online ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">не в сети</span>`;
-const oc = allUsers[otherId];
-setAvatarElement(chatAvatar, oc && oc.avatar_url, otherName.charAt(0).toUpperCase(), online ? '<div class="status-dot"></div>' : '');
+chatUserId.innerHTML = onlineUsers.has(otherId) ? `<span class="online-status"><span class="status-dot"></span> в сети</span>` : `<span class="offline-status">${lastSeenLabel(otherId)}</span>`;
+chatAvatar.textContent = otherName.charAt(0).toUpperCase();
+chatAvatar.style.background = getAvatarColor(otherName);
+chatAvatar.innerHTML = `${otherName.charAt(0).toUpperCase()}${online ? '<div class="status-dot"></div>' : ''}`;
 chatAvatar.onclick = () => showUserProfile(otherId, otherName);
 chatName.onclick = () => showUserProfile(otherId, otherName);
 callBtn.style.display = 'flex';
@@ -2498,6 +2452,22 @@ hideUploadProgress();
 notify('Ошибка загрузки: ' + (error.message || 'неизвестная ошибка'));
 }
 });
+let pendingSends = [];
+try { pendingSends = JSON.parse(localStorage.getItem('qwantum_pending') || '[]'); } catch (e) { pendingSends = []; }
+function savePendingSends() { try { localStorage.setItem('qwantum_pending', JSON.stringify(pendingSends)); } catch (e) {} }
+async function flushPendingSends() {
+if (pendingSends.length === 0) return;
+const batch = pendingSends.slice();
+const failed = [];
+for (const m of batch) {
+const { error } = await supabase.from('messages').insert(m);
+if (error) failed.push(m);
+}
+pendingSends = failed;
+savePendingSends();
+if (batch.length > failed.length) notify('Отправлено из очереди: ' + (batch.length - failed.length));
+}
+window.addEventListener('online', flushPendingSends);
 async function sendMessage() {
 if (!currentRoom) return notify('Выберите чат');
 const text = messageInput.value.trim();
@@ -2511,11 +2481,17 @@ msgData.reply = currentReplyData;
 currentReplyData = null;
 replyPreview.classList.remove('active');
 }
-await supabase.from('messages').insert(msgData);
+const { error: sendErr } = await supabase.from('messages').insert(msgData);
+if (sendErr) {
+pendingSends.push(msgData);
+savePendingSends();
+notify('Нет связи — сообщение отправится, когда связь вернётся');
+} else {
 chatLastTimes[chatId] = Date.now();
 localStorage.setItem('qwantum_chatTimes', JSON.stringify(chatLastTimes));
 playSound('send');
 await supabase.from('typing').delete().eq('user_id', myId);
+}
 }
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => {
